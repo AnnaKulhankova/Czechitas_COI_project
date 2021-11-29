@@ -1,0 +1,2389 @@
+-- tabulka RES:
+--přidání sloupců: "Datum_vzniku" a "Datum_zaniku" s datovým typem DATE 
+
+ALTER TABLE RES ADD column "Datum_vzniku" DATE;
+
+ALTER TABLE RES ADD column "Datum_zaniku" DATE;
+
+--naplnění nových sloupců hodnotami (ze sloupců DDATVZN a DDATZAN), prázdná buňka nahrazena "9999-09-09"
+UPDATE RES set 
+"Datum_vzniku" = (
+CASE WHEN "DDATVZN"='' THEN NULL
+ELSE "DDATVZN"
+END);
+
+UPDATE RES set 
+"Datum_zaniku"=(
+CASE WHEN "DDATZAN"='' THEN NULL
+ELSE "DDATZAN"
+END);
+
+--novy sloupec rok vzniku firmy
+
+ALTER TABLE RES ADD column "Rok_vzniku" INT;
+
+UPDATE RES set "Rok_vzniku"= (SELECT YEAR("Datum_vzniku"));
+
+--KONTROLA původní tabulky COI_kontroly:
+---------------------------------------------------------------------------------------------------------
+--KONTROLY:
+-- vytvarim pomocnou tabulku KONTROLY z původní tabulky COI_kontroly
+-- duplicity osetrim pomocí prikazu DISTINCT "Id_kontroly"
+-- datum prevadim na univerzalni format
+CREATE OR REPLACE TABLE KONTROLY AS
+SELECT
+   DISTINCT K."Id_kontroly"::INT AS "Id_kontroly"
+    , TO_DATE(K."Datum_kontroly", 'dd.mm.yyyy') as "Datum_kontroly" 
+    , CASE
+        WHEN K."IC_subjektu" <> '' THEN K."IC_subjektu"::INT
+        ELSE NULL
+        END AS "IC_subjektu"
+    , R."FIRMA" AS "Firma"
+--    , R."Datum_vzniku" AS "Datum_vzniku_firmy"
+--    , R."Rok_vzniku" AS "Rok_vzniku_firmy"
+--    , R."Datum_zaniku" AS "Datum_zaniku_firmy"
+    , K."Kraj" 
+--    , "Okres" 
+    , K."Obec" 
+    , K."Ulice" 
+    , K."C_popisne"
+    , K."C_orientacni"
+    , K."PSC"
+FROM "COI_Kontroly" AS K
+LEFT JOIN "RES" AS R
+ON K."IC_subjektu" = R."ICO";
+
+--pridavam pomocný sloupec Obec2, kam nalijeme hodnoty před pomlčkou
+ALTER TABLE KONTROLY ADD COLUMN "Obec2" VARCHAR;
+
+--rozdeluji Obce s pomlckou v názvu a nechávám pouze první část
+UPDATE KONTROLY SET
+"Obec2" = (IFF("Obec" <> 'Frýdek-Místek', (SPLIT_PART("Obec", '-', 1)), 'Frýdek-Místek'));
+
+--oprava ICO
+UPDATE KONTROLY SET
+"IC_subjektu" = '00000582'
+WHERE "IC_subjektu" = '582';
+
+UPDATE KONTROLY SET
+"IC_subjektu" = '00000205'
+WHERE "IC_subjektu" = '205';
+
+UPDATE KONTROLY SET
+"IC_subjektu" = '0000078'
+WHERE "IC_subjektu" = '78';
+
+--vytvarim pomocny sloupec forma subjektu
+ALTER TABLE KONTROLY ADD "Forma_subjektu" VARCHAR;
+
+UPDATE KONTROLY SET
+"Forma_subjektu" = (IFF("IC_subjektu" IS NOT NULL, 'Právnická osoba', 'Fyzická osoba'));
+
+--oprava ulic
+UPDATE KONTROLY SET
+ "Ulice" = (
+    CASE
+        WHEN "Ulice" = 'Po?tovní 595/7' THEN 'Poštovní 595/7'
+        WHEN "Ulice" = 'Kobli?ná 35/15' THEN 'Kobližná 35/15'
+        WHEN "Ulice" = 'Nádra?ní 287' THEN 'Nádražní 287'
+        WHEN "Ulice" = 'Podkru?nohorská' THEN 'Podkrušnohorská'
+         WHEN "Ulice" = '?i?kova třída 180/13' THEN 'Žižkova třída 180/13'
+  WHEN "Ulice" = 'Tě?nov 1162/9' THEN 'Těšnov 1162/9'
+  WHEN "Ulice" = 'Strá?nická 3657' THEN 'Strášnická 3657'
+  WHEN "Ulice" = '?imonova 1101/10' THEN 'Šimonova 1101/10'
+  WHEN "Ulice" = 'Jana ?vermy 13' THEN 'Jana Švermy 13'
+  WHEN "Ulice" = 'U lu?ického semináře 110/40' THEN 'U lužického semináře 110/40'
+  WHEN "Ulice" = 'Rů?ová 950/15' THEN 'Růžová 950/15'
+  WHEN "Ulice" = 'Libu?ina 1009' THEN 'Libušina 1009'
+  WHEN "Ulice" = 'Le?etínská 625/42' THEN 'Lešetínská 625/42'
+  WHEN "Ulice" = 'Lod?ská 399/26' THEN 'Lodžská 399/26'
+  WHEN "Ulice" = 'Podkru?nohorská' THEN 'Podkrušnohorská'
+  WHEN "Ulice" = 'Lod?ská 850/6' THEN 'Lodžská 850/6'
+  WHEN "Ulice" = 'U Staré po?ty 53' THEN 'U Staré pošty 53'
+  WHEN "Ulice" = 'třída Tomá?e Bati 174' THEN 'třída Tomáše Bati 174'
+  WHEN "Ulice" = 'Tě?ební 1238/2' THEN 'Těžební 1238/2'
+  WHEN "Ulice" = '?vantlova 144/2' THEN 'Švantlova 144/2'
+  WHEN "Ulice" = 'Nádra?ní 287' THEN 'Nádražní 287'
+  WHEN "Ulice" = 'Pra?ská' THEN 'Pražská'
+  WHEN "Ulice" = 'Lod?ská 399/26' THEN 'Lodžská 399/26'
+  WHEN "Ulice" = '?eříková 274/31' THEN 'Śeříková 274/31'
+  WHEN "Ulice" = 'Pra?ská 1417' THEN 'Pražská 1417'
+  WHEN "Ulice" = 'tř. Tomá?e Bati 1720' THEN 'tř. Tomáše Bati 1720'
+  WHEN "Ulice" = 'Vla?ská 349/15' THEN 'Vlašská 349/15'
+  WHEN "Ulice" = 'Barto?kova 1368/4' THEN 'Bartoškova 1368/4'
+  WHEN "Ulice" = 'Le?etínská 625/42' THEN 'Lešetínská 625/42'
+  WHEN "Ulice" = 'U Koupali?tě 348' THEN 'U Koupaliště 348'
+	ELSE "Ulice"
+    END );
+
+UPDATE KONTROLY
+SET "Ulice" = 'Pražská'
+WHERE "Id_kontroly" = '251402100021702';
+
+--oprava podle PSC u nejcasteji se vyskytujicich PSC v radcich s "Kraj neznamy"
+UPDATE KONTROLY SET
+"Kraj" = (
+    CASE
+        WHEN "PSC" = '60200' THEN 'Jihomoravský kraj'
+        WHEN "PSC" = '11000' THEN 'Hlavní město Praha'
+        WHEN "PSC" = '10000' THEN 'Hlavní město Praha'
+        WHEN "PSC" = '13000' THEN 'Hlavní město Praha'
+        WHEN "PSC" = '17000' THEN 'Hlavní město Praha'
+        WHEN "PSC" = '11800' THEN 'Hlavní město Praha'
+        WHEN "PSC" = '50303' THEN 'Královéhradecký kraj'
+        WHEN "PSC" = '27601' THEN 'Středočeský kraj'
+        WHEN "PSC" = '46604' THEN 'Liberecký kraj'
+        WHEN "PSC" = '15500' THEN 'Hlavní město Praha' 
+        WHEN "PSC" = '39001' THEN 'Jihočeský kraj' 
+        WHEN "PSC" = '16000' THEN 'Hlavní město Praha' 
+        WHEN "PSC" = '59202' THEN 'Kraj Vysočina'
+        WHEN "PSC" = '51101' THEN 'Liberecký kraj'
+        WHEN "PSC" = '54221' THEN 'Královéhradecký kraj'
+        WHEN "PSC" = '39002' THEN 'Jihočeský kraj'
+        WHEN "PSC" = '07101' THEN 'Košický kraj'
+        WHEN "PSC" = '47001' THEN 'Liberecký kraj'
+        WHEN "PSC" = '68301' THEN 'Jihomoravský kraj'
+        WHEN "PSC" = '46005' THEN 'Liberecký kraj'
+        WHEN "PSC" = '35601' THEN 'Karlovarský kraj'
+        WHEN "PSC" = '50012' THEN 'Královéhradecký kraj'
+        WHEN "PSC" = '39301' THEN 'Kraj Vysočina'
+        WHEN "PSC" = '16900' THEN 'Hlavní město Praha'
+        WHEN "PSC" = '68604' THEN 'Zlínský kraj'
+        WHEN "PSC" = '58601' THEN 'Kraj Vysočina' 
+        WHEN "PSC" = '70900' THEN 'Moravskoslezský kraj'
+        WHEN "PSC" = '624 0' THEN 'Hlavní město Praha'
+        WHEN "PSC" = '46334' THEN 'Liberecký kraj'
+        WHEN "PSC" = '10600' THEN 'Hlavní město Praha'
+        WHEN "PSC" = '12000' THEN 'Hlavní město Praha'
+        WHEN "PSC" = '38901' THEN 'Jihočeský kraj'
+        WHEN "PSC" = '39901' THEN 'Jihočeský kraj'
+        WHEN "PSC" = '46843' THEN 'Liberecký kraj'
+        WHEN "PSC" = '73601' THEN 'Moravskoslezský kraj'
+        WHEN "PSC" = '39601' THEN 'Kraj Vysočina'
+        WHEN "PSC" = '59231' THEN 'Kraj Vysočina'
+        WHEN "PSC" = '38241' THEN 'Jihočeský kraj'
+        WHEN "PSC" = '69188' THEN 'Jihomoravský kraj'
+        WHEN "PSC" = '11304' THEN 'Hlavní město Praha'
+        WHEN "PSC" = 'E173B' THEN 'London'
+        WHEN "PSC" = '85101' THEN 'Bratislavský kraj'
+        WHEN "PSC" = '80339' THEN 'Mnichov'
+        WHEN "PSC" = '50002' THEN 'Královéhradecký kraj'
+        WHEN "PSC" = '66451' THEN 'Jihomoravský kraj'
+        WHEN "PSC" = '25064' THEN 'Hlavní město Praha'
+        WHEN "PSC" = '38411' THEN 'Jihočeský kraj'
+        WHEN "PSC" = '25601' THEN 'Středočeský kraj'
+        WHEN "PSC" = '61900' THEN 'Jihomoravský kraj'
+        WHEN "PSC" = '46812' THEN 'Liberecký kraj'
+        WHEN "PSC" = '65124' THEN 'Libušské vojvodství'
+        WHEN "PSC" = '190 0' THEN 'Hlavní město Praha'
+        WHEN "PSC" = '75501' THEN 'Zlínský kraj'
+        WHEN "PSC" = '91105' THEN 'Trenčianský kraj'
+        WHEN "PSC" = '53901' THEN 'Pardubický kraj'
+        WHEN "PSC" = '19000' THEN 'Hlavní město Praha'
+        WHEN "PSC" = '70030' THEN 'Moravskoslezský kraj'
+        WHEN "PSC" = '39804' THEN 'Jihočeský kraj'
+        WHEN "PSC" = '54242' THEN 'Královéhradecký kraj'
+        WHEN "PSC" = '54455' THEN 'Královéhradecký kraj'
+        WHEN "PSC" = '53701' THEN 'Pardubický kraj'
+        WHEN "PSC" = '29301' THEN 'Středočeský kraj'
+        WHEN "PSC" = '59401' THEN 'Kraj Vysočina'
+        WHEN "PSC" = '41145' THEN 'Ústecký kraj'
+        WHEN "PSC" = '38601' THEN 'Jihočeský kraj'
+        WHEN "PSC" = '15000' THEN 'Hlavní město Praha'
+        WHEN "PSC" = '73531' THEN 'Moravskoslezský kraj'
+        WHEN "PSC" = '26701' THEN 'Středočeský kraj'
+        WHEN "PSC" = '37701' THEN 'Jihočeský kraj'
+        WHEN "PSC" = '14000' THEN 'Hlavní město Praha'
+        WHEN "PSC" = '28002' THEN 'Středočeský kraj'
+        WHEN "PSC" = '40003' THEN 'Ústecký kraj'
+        WHEN "PSC" = '54954' THEN 'Královéhradecký kraj'
+        WHEN "PSC" = '55001' THEN 'Královéhradecký kraj'
+        WHEN "PSC" = '74706' THEN 'Moravskoslezský kraj'
+        WHEN "PSC" = '38501' THEN 'Jihočeský kraj'
+  			WHEN "PSC" = '39201' THEN 'Jihočeský kraj'
+	ELSE "Kraj"
+    END )
+WHERE "Kraj" ILIKE 'Neznám%';
+
+--opravuji zbyle nezname kraje
+UPDATE KONTROLY
+SET "Kraj" = 'Liberecký kraj'
+    , "Obec2" = 'Liberec'
+WHERE "Id_kontroly" = '251709150025501';
+
+UPDATE KONTROLY
+SET "Kraj" = 'Liberecký kraj'
+    , "Obec2" = 'Hrabětice'
+    , "PSC" = '46811'
+WHERE "Id_kontroly" = '251702280008901';
+
+UPDATE KONTROLY
+SET "Kraj" = 'Liberecký kraj'
+    , "Obec2" = 'Liberec'
+WHERE "Id_kontroly" = '251706010008901';
+
+--opravuji Vysočina na Kraj Vysočina
+UPDATE KONTROLY SET
+"Kraj" = 'Kraj Vysočina'
+WHERE "Kraj" ILIKE '%Vysočina%';
+
+--opravuji radky, kde neznama obec, prestoze PSC vyplnene
+UPDATE KONTROLY SET
+    "Obec2" = (
+    CASE
+        WHEN "PSC" = '60200' THEN 'Brno'
+        WHEN "PSC" = '11000' THEN 'Praha'
+        WHEN "PSC" = '10000' THEN 'Praha'
+        WHEN "PSC" = '13000' THEN 'Praha'
+        WHEN "PSC" = '17000' THEN 'Praha'
+        WHEN "PSC" = '11800' THEN 'Praha'
+        WHEN "PSC" = '27601' THEN 'Mělník'
+        WHEN "PSC" = '46604' THEN 'Jablonec nad Nisou'
+        WHEN "PSC" = '15500' THEN 'Praha' 
+        WHEN "PSC" = '39001' THEN 'Tábor' 
+        WHEN "PSC" = '16000' THEN 'Praha' 
+        WHEN "PSC" = '59202' THEN 'Svratka'
+        WHEN "PSC" = '51101' THEN 'Turnov'
+        WHEN "PSC" = '54221' THEN 'Pec pod Sněžkou'
+        WHEN "PSC" = '39002' THEN 'Tábor'
+        WHEN "PSC" = '07101' THEN 'Michalovce'
+        WHEN "PSC" = '47001' THEN 'Česká Lípa'
+        WHEN "PSC" = '68301' THEN 'Rousínov'
+        WHEN "PSC" = '46005' THEN 'Liberec'
+        WHEN "PSC" = '35601' THEN 'Sokolov'
+        WHEN "PSC" = '50012' THEN 'Hradec Králové'
+        WHEN "PSC" = '39301' THEN 'Pelhřimov'
+        WHEN "PSC" = '16900' THEN 'Praha'
+        WHEN "PSC" = '68604' THEN 'Kunovice'
+        WHEN "PSC" = '58601' THEN 'Jihlava' 
+        WHEN "PSC" = '70900' THEN 'Ostrava'
+        WHEN "PSC" = '624 0' THEN 'Praha'
+        WHEN "PSC" = '46334' THEN 'Hrádek nad Nisou'
+        WHEN "PSC" = '10600' THEN 'Praha'
+        WHEN "PSC" = '12000' THEN 'Praha'
+        WHEN "PSC" = '38901' THEN 'Vodňany'
+        WHEN "PSC" = '39901' THEN 'Milevsko'
+        WHEN "PSC" = '46843' THEN 'Albrechtice v Jizerských horách'
+        WHEN "PSC" = '73601' THEN 'Havířov'
+        WHEN "PSC" = '39601' THEN 'Humpolec'
+        WHEN "PSC" = '59231' THEN 'Nové Město na Moravě'
+        WHEN "PSC" = '38241' THEN 'Kaplice'
+        WHEN "PSC" = '69188' THEN 'Milovice'
+        WHEN "PSC" = '11304' THEN 'Praha'
+        WHEN "PSC" = 'E173B' THEN 'Church Hill'
+        WHEN "PSC" = '85101' THEN 'Petržalka'
+        WHEN "PSC" = '80339' THEN 'Mnichov'
+        WHEN "PSC" = '50002' THEN 'Hradec Králové'
+        WHEN "PSC" = '66451' THEN 'Šlapanice'
+        WHEN "PSC" = '25064' THEN 'Měšice'
+        WHEN "PSC" = '38411' THEN 'Netolice'
+        WHEN "PSC" = '25601' THEN 'Benešov'
+        WHEN "PSC" = '61900' THEN 'Brno'
+        WHEN "PSC" = '46812' THEN 'Bedřichov'
+        WHEN "PSC" = '65124' THEN 'Zielona Góra'
+        WHEN "PSC" = '190 0' THEN 'Praha'
+        WHEN "PSC" = '75501' THEN 'Vsetín'
+        WHEN "PSC" = '91105' THEN 'Trenčín'
+        WHEN "PSC" = '53901' THEN 'Hlinsko'
+        WHEN "PSC" = '19000' THEN 'Praha'
+        WHEN "PSC" = '70030' THEN 'Ostrava'
+        WHEN "PSC" = '39804' THEN 'Čimelice'
+        WHEN "PSC" = '54242' THEN 'Pilníkov'
+        WHEN "PSC" = '54455' THEN 'Dubenec'
+        WHEN "PSC" = '53701' THEN 'Chrudim'
+        WHEN "PSC" = '29301' THEN 'Mladá Boleslav'
+        WHEN "PSC" = '59401' THEN 'Velké Meziříčí'
+        WHEN "PSC" = '41145' THEN 'Úštěk'
+        WHEN "PSC" = '38601' THEN 'Strakonice'
+        WHEN "PSC" = '15000' THEN 'Praha'
+        WHEN "PSC" = '73531' THEN 'Bohumín'
+        WHEN "PSC" = '26701' THEN 'Králův Dvůr u Berouna'
+        WHEN "PSC" = '37701' THEN 'Jindřichův Hradec'
+        WHEN "PSC" = '14000' THEN 'Praha'
+        WHEN "PSC" = '28002' THEN 'Kolín'
+        WHEN "PSC" = '40003' THEN 'Ústí nad Labem'
+        WHEN "PSC" = '54954' THEN 'Police nad Metují'
+        WHEN "PSC" = '55001' THEN 'Broumov'
+        WHEN "PSC" = '74706' THEN 'Opava'
+        WHEN "PSC" = '38501' THEN 'Vimperk'
+      	WHEN "PSC" = '39201' THEN 'Soběslav'
+	ELSE "Obec"
+    END )
+WHERE "Obec" ILIKE 'Neznám%';
+
+-- Rucni oprava radku:
+UPDATE KONTROLY
+SET "Kraj" = 'Jihomoravský kraj'
+    ,"Obec2" = 'Brno'
+--    ,"Okres" = 'Brno-město'
+    ,"C_popisne" = '479'
+    , "C_orientacni" = '11'
+WHERE "Id_kontroly" = '301703290048301';
+
+--odstranujeme poznamku "stary kod"
+UPDATE KONTROLY SET
+"Obec" = REPLACE("Obec", '(starý kód)', '')
+WHERE "Obec" ILIKE '%starý kód%';
+
+--odstranujeme poznamku "neclenene mesto"
+UPDATE KONTROLY SET
+"Obec" = REPLACE("Obec", '(nečleněné město)', '')
+WHERE "Obec" ILIKE '%nečleněné město%';
+
+--odstranujeme poznamku "(nečleněná část města)"
+UPDATE KONTROLY SET
+"Obec" = REPLACE("Obec", '(nečleněná část města)', '')
+WHERE "Obec" ILIKE '%nečleněná část města%';
+
+--opravuji jeste par chybne vyplnenych PSC
+UPDATE KONTROLY SET
+    "PSC" = (
+    CASE
+        WHEN "PSC" = '624 0' THEN '16200'
+        WHEN "PSC" = '11304' THEN '11000'
+        WHEN "PSC" = '190 0' THEN '19000'
+      	ELSE "PSC"
+    END );
+
+--pridavam sloupec Zeme, protoze par kontrol v zahranici s defaultni hodnotou 'Ceska republika'
+ALTER TABLE KONTROLY ADD ("Zeme" VARCHAR);
+
+UPDATE KONTROLY SET "Zeme" = 'Česká republika';
+
+--oprava PSC
+UPDATE KONTROLY SET
+"PSC" = (
+    CASE
+        WHEN "Obec2" = 'Praha 1' THEN '11000'
+        WHEN "Obec2" = 'Praha 10' THEN '10000'
+        WHEN "Obec2" = 'Praha 11' THEN '10100'
+        WHEN "Obec2" = 'Praha 12' THEN '10200'
+        WHEN "Obec2" = 'Praha 15' THEN '10500'
+        WHEN "Obec2" = 'Praha 12' THEN '12000'
+        WHEN "Obec2" = 'Praha 22' THEN '10400'
+        WHEN "Obec2" = 'Praha 3' THEN '13000'
+        WHEN "Obec2" = 'Praha 4' THEN '14000'
+        WHEN "Obec2" = 'Praha 5' THEN '15000'
+        WHEN "Obec2" = 'Praha 6' THEN '16000'
+        WHEN "Obec2" = 'Praha 7' THEN '17000'
+        WHEN "Obec2" = 'Praha 8' THEN '18000'
+        WHEN "Obec2" = 'Praha 9' THEN '19000'
+  ELSE '11000'
+  END)
+WHERE "Kraj" ILIKE '%Praha%' AND "PSC" NOT ILIKE '1%' AND "PSC" <> '';
+
+UPDATE KONTROLY SET
+"PSC" = '25001'
+WHERE "Kraj" ILIKE '%Středočeský%' AND "PSC" NOT ILIKE '2%' AND "PSC" <> '';
+
+UPDATE KONTROLY SET
+"PSC" = '37001'
+WHERE "Kraj" ILIKE '%Jihočeský%' AND "PSC" NOT ILIKE '3%' AND "PSC" <> '';
+
+UPDATE KONTROLY SET
+"PSC" = (
+  CASE
+    WHEN "PSC" = '34201' THEN '37001'
+    WHEN "PSC" = '34201' THEN '33801'
+  ELSE "PSC" END
+)
+WHERE "Kraj" ILIKE '%Jihočeský%';
+
+UPDATE KONTROLY SET
+"PSC" = '46001'
+WHERE "Kraj" IN ('Liberecký kraj', 'Ústecký kraj') AND "PSC" ILIKE '1%';
+
+UPDATE KONTROLY SET
+"PSC" = '46001'
+WHERE "Kraj" IN ('Liberecký kraj', 'Ústecký kraj') AND "PSC" ILIKE '2%';
+
+UPDATE KONTROLY SET
+"PSC" = '46001'
+WHERE "Kraj" IN ('Liberecký kraj', 'Ústecký kraj') AND "PSC" ILIKE '7%';
+
+UPDATE KONTROLY SET
+"PSC" = '46001'
+WHERE "Kraj" IN ('Liberecký kraj', 'Ústecký kraj') AND "PSC" ILIKE '3%';
+
+UPDATE KONTROLY SET
+"PSC" = '46001'
+WHERE "Kraj" = 'Liberecký kraj' AND "PSC" ILIKE '40%';
+
+UPDATE KONTROLY SET
+"PSC" = '60200'
+WHERE "Kraj" = 'Jihomoravský kraj' AND "PSC" <> '' AND "PSC" NOT ILIKE '6%';
+
+UPDATE KONTROLY SET
+"PSC" = '58601'
+WHERE "Kraj" = 'Kraj Vysočina' AND "PSC" ILIKE '1%';
+
+UPDATE KONTROLY SET
+"PSC" = '58601'
+WHERE "Kraj" = 'Kraj Vysočina' AND "PSC" ILIKE '%38601%';
+
+UPDATE KONTROLY SET
+"PSC" = '58601'
+WHERE "Kraj" = 'Kraj Vysočina' AND "PSC" ILIKE '%51211%';
+
+UPDATE KONTROLY SET
+"PSC" = '58601'
+WHERE "Kraj" = 'Kraj Vysočina' AND "PSC" ILIKE '4%';
+
+UPDATE KONTROLY SET
+"PSC" = '58601'
+WHERE "Kraj" = 'Kraj Vysočina' AND "PSC" ILIKE '%67901%';
+
+UPDATE KONTROLY SET
+"PSC" = '58601'
+WHERE "Kraj" = 'Kraj Vysočina' AND "PSC" ILIKE '7%';
+
+UPDATE KONTROLY SET
+"PSC" = '70030'
+WHERE "Kraj" = 'Moravskoslezský kraj' AND "PSC" <> '' AND "PSC" NOT ILIKE '7%';
+
+UPDATE KONTROLY SET
+"PSC" = '70030'
+WHERE "Kraj" = 'Moravskoslezský kraj' AND "PSC" ILIKE '76%';
+
+UPDATE KONTROLY SET
+"PSC" = '70030'
+WHERE "Kraj" = 'Moravskoslezský kraj' AND "PSC" ILIKE '78%';
+
+UPDATE KONTROLY SET
+"PSC" = '77900'
+WHERE "Kraj" = 'Olomoucký kraj' AND "PSC" <> '' AND "PSC" NOT ILIKE '7%';
+
+UPDATE KONTROLY SET
+"PSC" = '77900'
+WHERE "Kraj" = 'Olomoucký kraj' AND "PSC" ILIKE '74%';
+
+UPDATE KONTROLY SET
+"PSC" = '77900'
+WHERE "Kraj" = 'Olomoucký kraj' AND "PSC" ILIKE '76%';
+
+UPDATE KONTROLY SET
+"PSC" = '77900'
+WHERE "Kraj" = 'Olomoucký kraj' AND "PSC" ILIKE '71%';
+
+UPDATE KONTROLY SET
+"PSC" = '77900'
+WHERE "Kraj" = 'Olomoucký kraj' AND "PSC" = '79383';
+
+UPDATE KONTROLY SET
+"PSC" = '36001'
+WHERE "Kraj" = 'Karlovarský kraj' AND "PSC" <> '' AND "PSC" NOT ILIKE '3%';
+
+UPDATE KONTROLY SET
+"PSC" = '50002'
+WHERE "Kraj" = 'Královéhradecký kraj' AND "PSC" <> '' AND "PSC" NOT ILIKE '5%';
+
+UPDATE KONTROLY SET
+"PSC" = '50002'
+WHERE "Kraj" = 'Královéhradecký kraj' AND "PSC" ILIKE '53%';
+
+UPDATE KONTROLY SET
+"PSC" = '50002'
+WHERE "Kraj" = 'Královéhradecký kraj' AND "PSC" ILIKE '56%';
+
+UPDATE KONTROLY SET
+"PSC" = '53002'
+WHERE "Kraj" = 'Pardubický kraj' AND "PSC" <> '' AND "PSC" NOT ILIKE '5%';
+
+UPDATE KONTROLY SET
+"PSC" = '53002'
+WHERE "Kraj" = 'Pardubický kraj' AND "PSC" ILIKE '50%';
+
+UPDATE KONTROLY SET
+"PSC" = '53002'
+WHERE "Kraj" = 'Pardubický kraj' AND "PSC" ILIKE '55%';
+
+UPDATE KONTROLY SET
+"PSC" = '30100'
+WHERE "Kraj" = 'Plzeňský kraj' AND "PSC" <> '' AND "PSC" NOT ILIKE '3%';
+
+UPDATE KONTROLY SET
+"PSC" = '30100'
+WHERE "Kraj" = 'Plzeňský kraj' AND "PSC" = '35735';
+
+UPDATE KONTROLY SET
+"PSC" = '30100'
+WHERE "Kraj" = 'Plzeňský kraj' AND "PSC" = '38501';
+
+UPDATE KONTROLY SET
+"PSC" = '40001'
+WHERE "Kraj" = 'Ústecký kraj' AND "PSC" = '47001';
+
+UPDATE KONTROLY SET
+"PSC" = '40001'
+WHERE "Kraj" = 'Ústecký kraj' AND "PSC" = '46401';
+
+UPDATE KONTROLY SET
+"PSC" = '40001'
+WHERE "Kraj" = 'Ústecký kraj' AND "PSC" = '46001';
+
+UPDATE KONTROLY SET
+"PSC" = '68601'
+WHERE "Kraj" = 'Zlínský kraj' AND "PSC" ILIKE '1%';
+
+UPDATE KONTROLY SET
+"PSC" = '76001'
+WHERE "Kraj" = 'Zlínský kraj' AND "PSC" ILIKE '3%';
+
+UPDATE KONTROLY SET
+"PSC" = '76001'
+WHERE "Kraj" = 'Zlínský kraj' AND "PSC" ILIKE '5%';
+
+UPDATE KONTROLY SET
+"PSC" = '76001'
+WHERE "Kraj" = 'Zlínský kraj' AND "PSC" ILIKE '69%';
+
+UPDATE KONTROLY SET
+"PSC" = '76001'
+WHERE "Kraj" = 'Zlínský kraj' AND "PSC" = '63900';
+
+UPDATE KONTROLY SET
+"PSC" = '76001'
+WHERE "Kraj" = 'Zlínský kraj' AND "PSC" = '68501';
+
+UPDATE KONTROLY SET
+"PSC" = '76001'
+WHERE "Kraj" = 'Zlínský kraj' AND "PSC" = '68303';
+
+UPDATE KONTROLY SET
+"PSC" = '76001'
+WHERE "Kraj" = 'Zlínský kraj' AND "PSC" = '68201';
+
+UPDATE KONTROLY SET
+"PSC" = '76001'
+WHERE "Kraj" = 'Zlínský kraj' AND "PSC" ILIKE '70%';
+
+UPDATE KONTROLY SET
+"PSC" = '76001'
+WHERE "Kraj" = 'Zlínský kraj' AND "PSC" ILIKE '71%';
+
+UPDATE KONTROLY SET
+"PSC" = '76001'
+WHERE "Kraj" = 'Zlínský kraj' AND "PSC" ILIKE '72%';
+
+--opravuji jeste par chybne vyplnenych PSC
+UPDATE KONTROLY SET
+    "Zeme" = (
+    CASE
+        WHEN "PSC" = '07101' THEN 'Slovensko'
+        WHEN "PSC" = 'E173B' THEN 'Velká Británie'
+        WHEN "PSC" = '85101' THEN 'Slovensko'
+        WHEN "PSC" = '8039' THEN 'Německo'
+        WHEN "PSC" = '65124' THEN 'Polsko'
+        WHEN "PSC" = '91105' THEN 'Slovensko'
+      ELSE "Zeme"
+    END );
+
+--Sloupec pobocky
+--Pobočky
+ALTER TABLE KONTROLY ADD "Pobocky" VARCHAR;
+
+UPDATE KONTROLY SET
+"Pobocky" = ("IC_subjektu"||"Ulice"||"C_popisne"||"C_orientacni"||"PSC"||"Obec2");
+
+--odmazani nepotrebnych radku
+DELETE FROM KONTROLY  
+WHERE "Id_kontroly" = '101810300955505';
+
+DELETE FROM KONTROLY
+WHERE "Zeme" <> 'Česká republika';
+
+DELETE FROM KONTROLY
+WHERE "PSC" ILIKE '%1012%';
+
+DELETE FROM KONTROLY  
+WHERE "Id_kontroly" = '101803200906501';
+
+DELETE FROM KONTROLY
+WHERE "Id_kontroly" = '101905140955503';
+
+UPDATE KONTROLY SET
+"PSC" = '63700'
+WHERE "PSC" ILIKE '%Brno%';
+
+UPDATE KONTROLY SET
+    "PSC" = (REPLACE("PSC", ' ')) 
+WHERE "PSC" ILIKE '% %';
+
+ALTER TABLE KONTROLY ADD ("0" STRING);
+
+UPDATE KONTROLY SET "0" = '0';
+
+UPDATE KONTROLY SET
+"PSC" = (CONCAT("PSC", "0"))
+WHERE LENGTH("PSC") < 5 AND "PSC" <> '';
+
+ALTER TABLE KONTROLY DROP "0";
+
+DELETE FROM KONTROLY 
+WHERE "PSC" ILIKE '0%';
+
+UPDATE KONTROLY SET "PSC" = '46001'
+WHERE "PSC" ILIKE '%|%';
+
+UPDATE KONTROLY SET "PSC" = '68201'
+WHERE "PSC" = 'žáěé+' OR "PSC" = 'žážé+';
+
+UPDATE KONTROLY
+SET "Kraj" = 'Liberecký kraj'
+    , "Obec2" = 'Liberec'
+WHERE "Firma" = 'HA & G FAMILI s.r.o.';
+
+--mazeme hodnoty bez vyznamu
+DELETE FROM KONTROLY
+WHERE "Kraj" ILIKE 'Neznámý%';
+
+--pridavam sloupec adresa
+ALTER TABLE KONTROLY ADD "Adresa" VARCHAR;
+
+UPDATE KONTROLY SET
+"Adresa" = (CONCAT("Ulice", ' ', "C_popisne", ' ', "C_orientacni"));
+
+DELETE FROM KONTROLY 
+WHERE "IC_subjektu" = '2410' 
+OR "IC_subjektu" = '333' 
+OR "IC_subjektu" = '221' 
+OR "IC_subjektu" = '11' 
+OR "IC_subjektu" = '6' 
+OR "IC_subjektu" = '0';
+
+--mazu nepotrebne sloupce
+ALTER TABLE KONTROLY DROP "Ulice";
+
+ALTER TABLE KONTROLY DROP "C_popisne";
+
+ALTER TABLE KONTROLY DROP "C_orientacni";
+
+--dalsi finalni oprava PSC
+--P10
+UPDATE "KONTROLY" SET "Obec2" = 'Praha 10' where "Obec2" ilike 'Prah%' and "PSC" ilike '10%';
+
+UPDATE "KONTROLY" SET "Obec" = 'Praha 10' where "Obec2" ilike 'Prah%' and "PSC" ilike '10%';
+
+UPDATE "KONTROLY" SET "Obec2" = 'Praha 10', "Obec" = 'Praha 10', "PSC" = '10200' where 
+"Id_kontroly" = '101510130041301' or "Id_kontroly" = '101704190038004'  or "Id_kontroly" = '101601040009501' or "Id_kontroly" = '101901300059102';
+
+--P1
+UPDATE "KONTROLY" SET "Obec2" = 'Praha 1', "Obec" = 'Praha 1' where "Obec2" ilike 'Prah%' and "PSC" ilike '11%';
+
+UPDATE "KONTROLY" SET "Obec" = 'Jeneč', "Obec2" = 'Jeneč' where "Id_kontroly" = '101601288902101';
+
+UPDATE "KONTROLY" SET "Obec" = 'Praha 10',"Obec2" = 'Praha 10', "PSC" = '10800' where "Id_kontroly" = '101702210913002';
+
+UPDATE "KONTROLY" SET "Obec" = 'Teplice', "Obec2" = 'Teplice', "PSC" = '41501', "Kraj" = 'Ústecký kraj' where "Id_kontroly" = '101712270047201';
+
+UPDATE "KONTROLY" SET "Obec" = 'Praha 2',"Obec2" = 'Praha 2', "PSC" = '12000' where "Id_kontroly" = '101803010910901';
+
+UPDATE "KONTROLY" SET "Obec" = 'Praha 10', "PSC" = '10000' where "Id_kontroly" = '101708230152899';
+
+UPDATE "KONTROLY" SET "Obec2" = 'Praha 10', "PSC" = '10000' where "Id_kontroly" = '101708230152899';
+
+UPDATE "KONTROLY" SET "Obec" = 'Praha 10', "PSC" = '10200' where "Id_kontroly" = '101510150038301';
+
+UPDATE "KONTROLY" SET "Obec2" = 'Praha 10', "PSC" = '10200' where "Id_kontroly" = '101510150038301';
+
+UPDATE "KONTROLY" SET "Obec" = 'Praha 2', "PSC" = '12000' where "Id_kontroly" = '101407090011303';
+
+UPDATE "KONTROLY" SET "Obec2" = 'Praha 2', "PSC" = '12000' where "Id_kontroly" = '101407090011303';
+
+UPDATE "KONTROLY" SET "Obec" = 'Praha 10',"Obec2" = 'Praha 10', "Adresa" = 'Služeb 609/6', "PSC" = '10800' where "Id_kontroly" = '101603040048001';
+
+--P2
+UPDATE "KONTROLY" SET "Obec2" = 'Praha 2', "Obec" = 'Praha 2' where "Obec2" ilike 'Prah%' and "PSC" ilike '12%';
+
+UPDATE "KONTROLY" SET "Obec2" = 'Praha 3', "Obec" = 'Praha 3', "PSC" = '13000' where "Id_kontroly" = '101812050955502';
+
+UPDATE "KONTROLY" SET "Obec2" = 'Praha 4', "Obec" = 'Praha 4', "PSC" = '14000' where "Id_kontroly" = '101602260011303' or "Id_kontroly" = '101509230038301' 
+or "Id_kontroly" = '101704040011302' or "Id_kontroly" = '101811289907701';
+
+UPDATE "KONTROLY" SET "Obec2" = 'Praha 1', "Obec" = 'Praha 1', "PSC" = '11000' where "Id_kontroly" = '102001090084703' or "Id_kontroly" = '101601200955599'  or "Id_kontroly" = '101601010955501' or "Id_kontroly" = '301710100026350'
+or "Id_kontroly" = '101606030032501' or "Id_kontroly" = '101712010955501' or "Id_kontroly" = '101608090010201' or "Id_kontroly" = '101810100907603';
+
+UPDATE "KONTROLY" SET "Obec2" = 'Praha 10', "Obec" = 'Praha 10', "PSC" = '10200' where "Id_kontroly" = '101711078154401';
+
+UPDATE "KONTROLY" SET "Adresa" = 'Bělehradská 858/23' where "Id_kontroly" = '101601200047201';
+
+--P3
+UPDATE "KONTROLY" SET "Obec2" = 'Praha 3', "Obec" = 'Praha 3' where "Obec2" ilike 'Prah%' and "PSC" ilike '13%';
+
+UPDATE "KONTROLY" SET "Obec2" = 'Praha 1', "Obec" = 'Praha 1', "PSC" = '11000' where 
+"Id_kontroly" = '102008050013604';
+
+UPDATE "KONTROLY" SET "Obec2" = 'Praha 2', "Obec" = 'Praha 2', "PSC" = '12000' where "Adresa" ilike 'Vinohrad%';
+
+select "Adresa", * from "KONTROLY" where "Obec2" not in('Praha 1','Praha 2', 'Praha 3', 'Praha 4', 'Praha 5', 'Praha 6', 'Praha 7', 'Praha 8', 'Praha 9', 'Praha 10')  and "Obec2" ilike 'Prah%';
+
+select "Adresa", * from "KONTROLY" where "Obec2" ilike 'Prah%' and "PSC" ilike '16%' and "Adresa" ilike 'Milady%';
+
+--P4
+UPDATE "KONTROLY" SET "Obec2" = 'Praha 4', "Obec" = 'Praha 4' where "Obec2" ilike 'Prah%' and "PSC" ilike '14%';
+
+UPDATE "KONTROLY" SET "Obec2" = 'Praha 4', "Obec" = 'Praha 4', "PSC" = '14800' where 
+"Id_kontroly" = '101704260038302' or "Id_kontroly" = '101601040009501';
+
+--P5
+UPDATE "KONTROLY" SET "Obec2" = 'Praha 5', "Obec" = 'Praha 5' where "Obec2" ilike 'Prah%' and "PSC" ilike '15%';
+
+--P6
+UPDATE "KONTROLY" SET "Obec2" = 'Praha 5', "Obec" = 'Praha 5' where "Obec2" ilike 'Prah%' and "PSC" ilike '16%';
+
+UPDATE "KONTROLY" SET "Obec2" = 'Praha 9', "Obec" = 'Praha 9', "PSC" = '19300' where 
+"Adresa" = 'Chlumec%';
+
+UPDATE "KONTROLY" SET "Obec2" = 'Praha 7', "Obec" = 'Praha 7', "PSC" = '17000' where 
+"Adresa" = 'Milady%';
+
+UPDATE "KONTROLY" SET "Obec2" = 'Praha 5', "Obec" = 'Praha 5', "PSC" = '15000' where 
+"Adresa" = 'Janáčkovo%';
+
+--P7
+UPDATE "KONTROLY" SET "Obec2" = 'Praha 7', "Obec" = 'Praha 7' where "Obec2" ilike 'Prah%' and "PSC" ilike '17%';
+
+--P8
+UPDATE "KONTROLY" SET "Obec2" = 'Praha 8', "Obec" = 'Praha 8' where "Obec2" ilike 'Prah%' and "PSC" ilike '18%';
+
+--P9
+UPDATE "KONTROLY" SET "Obec2" = 'Praha 9', "Obec" = 'Praha 9' where "Obec2" ilike 'Prah%' and "PSC" ilike '19%';
+
+--------------------------------------------------------------------------------------------------------------
+--SANKCE
+-- vytvarim pomocnou tabulku SANKCE z původní tabulky COI_sankce
+-- duplicity osetrim pomocí prikazu DISTINCT "Id_Sankce"
+-- datum prevadim na univerzalni format
+--ciselne hodnoty prevadime na INT
+
+CREATE TABLE SANKCE AS
+SELECT
+    DISTINCT S."Id_Sankce"::INT AS "Id_Sankce"
+    , S."ID_kontroly"::INT AS "ID_kontroly"
+    , S."Vyse_pokuty"::INT AS "Vyse_pokuty"
+    , S."Zakon"
+    , S."S" 
+    , U."URL" AS "URL_sankce"
+    , TO_DATE(S."Datum_nabyti_Pravni_Moci", 'dd.mm.yyyy') as "Datum_nabyti_pravni_moci"
+FROM "COI_sankce" AS S
+LEFT JOIN "url-sankce-list-1" AS U
+ON S."Zakon" = U."Cislo";
+
+--odmazavam radky, ktere se nenapoji na kontroly
+DELETE FROM SANKCE 
+WHERE "ID_kontroly" IN (SELECT "ID_kontroly" 
+FROM KONTROLY AS K
+FULL OUTER JOIN SANKCE AS S
+ON K."Id_kontroly" = S."ID_kontroly"
+WHERE "Id_kontroly" IS NULL);
+
+-----------------------------------------------------------------------
+--TABULKA ZAKAZY
+
+CREATE OR REPLACE TABLE ZAKAZY AS
+SELECT
+    DISTINCT Z."Id_zakazu"::INT AS "Id_zakazu"
+    , Z."ID_kontroly" ::INT AS "ID_kontroly"
+    , Z."Sortiment"
+    , CASE
+        WHEN Z."Mnozstvi" <> '' THEN (REPLACE(Z."Mnozstvi", ';', '.'))::FLOAT
+        ELSE NULL
+       END AS "Mnozstvi"
+    , Z."Jednotka"
+    , CASE
+        WHEN Z."Cena_celkem" <> '' THEN (REPLACE(Z."Cena_celkem", ';', '.'))::FLOAT
+        ELSE NULL
+       END AS "Cena_celkem"
+    , Z."Dle_zakona"
+    , U."URL" AS "URL_zakazy"
+FROM "COI_zakazy" AS Z
+LEFT JOIN "url-zakazy-list-1" AS U
+ON Z."Dle_zakona" = U."Cislo";
+
+--opravuji jeden radek, kde cena zaporna
+UPDATE ZAKAZY SET
+    "Cena_celkem" = 0
+WHERE "Cena_celkem" < 0;
+
+--odmazavam radky, ktere se nenapoji na kontroly
+DELETE FROM ZAKAZY 
+WHERE "ID_kontroly" IN (SELECT "ID_kontroly" 
+FROM KONTROLY AS K
+FULL OUTER JOIN ZAKAZY AS Z
+ON K."Id_kontroly" = Z."ID_kontroly"
+WHERE "Id_kontroly" IS NULL);
+
+
+-----------------------------------------------------------------------
+CREATE or REPLACE TABLE DATA_CLEAN AS
+SELECT
+    K."Id_kontroly"
+    ,K."Datum_kontroly"
+    ,K."IC_subjektu"
+    ,K."Firma"
+    ,K."Forma_subjektu"
+--    ,K."Datum_vzniku_firmy"
+--    ,K."Rok_vzniku_firmy"
+--   ,K."Datum_zaniku_firmy"
+    ,K."Kraj"
+--    ,K."Okres"
+    ,K."Obec"
+    ,K."Obec2"
+    ,K."Adresa"
+    ,CASE
+    		WHEN K."PSC" <> '' THEN K."PSC"::INT
+        ELSE NULL
+      END AS "PSC"
+--    ,K."Zeme"
+    ,S."Id_Sankce"
+    ,S."Vyse_pokuty"
+    ,S."Zakon"
+    ,S."S"
+    ,S."URL_sankce"
+    ,S."Datum_nabyti_pravni_moci"
+    ,Z."Id_zakazu"
+    ,Z."Sortiment"
+    ,Z."Mnozstvi"
+    ,Z."Jednotka"
+    ,Z."Cena_celkem"
+    ,Z."Dle_zakona"
+    ,Z."URL_zakazy"
+FROM KONTROLY AS K
+LEFT JOIN SANKCE AS S
+ON K."Id_kontroly" = S."ID_kontroly"
+LEFT JOIN ZAKAZY AS Z
+ON K."Id_kontroly" = Z."ID_kontroly";
+
+DELETE FROM DATA_CLEAN
+WHERE "IC_subjektu" IS NULL AND "Kraj" ILIKE 'Neznám%' AND "Id_Sankce" IS NULL AND "Id_zakazu" IS NULL;
+
+--tabulka ZAJISTENI
+---------------------------------NEDOCISTENA_CHYBI KOLEM 8700 RADKU
+
+select * from "COI_zajisteni";
+
+CREATE TABLE "Zajisteni_skusobna" AS SELECT
+ "Id_Zajisteni":: INT as "Id_Zajisteni"
+, "ID_kontroly"::INT as "ID_kontroly"
+, "Znacka" 
+, "Vyrobek"
+, "Mnozstvi"::INT as "Mnozstvi"
+FROM "COI_zajisteni";
+
+select * from "Zajisteni_skusobna";
+
+ALTER TABLE "Zajisteni_skusobna" ADD COLUMN "Brand" VARCHAR;
+
+SELECT * FROM "Zajisteni_skusobna" WHERE "Brand" is null;
+
+--SELECT * FROM "Zajisteni_skusobna" WHERE "Znacka" ILIKE '%yama%';
+
+
+
+--doplnenni do noveho sloupe Brand
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Gucci' WHERE "Znacka" ILIKE 'Guc%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Michael Kors' WHERE "Znacka" ILIKE 'Mich%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Nike' WHERE "Znacka" ILIKE 'Nik%' or "Znacka" ILIKE 'nik%' or "Znacka" ILIKE '%nike%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Pepe Jeans' WHERE "Znacka" ILIKE 'Pepe%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Peppa Pig' WHERE "Znacka" ILIKE 'peppa%' or "Znacka" ILIKE 'pepa%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Tommy Hilfiger' WHERE "Znacka" ILIKE '%Hilf%' or "Znacka" ILIKE '%Hifi%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Thomas' WHERE "Znacka" ILIKE '%thom%' or "Znacka" ILIKE 'Maš%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Tom Tailor' WHERE "Znacka" ILIKE '%Tail%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Levis' WHERE "Znacka" ILIKE 'Lev%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Bell & Ross' WHERE "Znacka" ILIKE 'Bel%ros%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Tom & Jerry' WHERE "Znacka" ILIKE '%jer%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Lego' WHERE "Znacka" ILIKE 'Lego%' or "Znacka" ILIKE '%minecraft%' or "Znacka" ILIKE '%craf%' or 
+"Znacka" ILIKE '%ninja%' or "Znacka" ILIKE '%turtl%' or "Znacka" ILIKE 'ninja';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Jágr' WHERE "Znacka" ILIKE 'Jágr%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Me to you' WHERE "Znacka" ILIKE 'Me%to%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Me to you' WHERE "Znacka" ILIKE '%My%to%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Guns & Roses' WHERE "Znacka" ILIKE 'Gun%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Victoria Beckham' WHERE "Znacka" ILIKE '%vic%' or "Znacka" ILIKE 'Back%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Converse' WHERE "Znacka" ILIKE '%conver%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Versace' WHERE "Znacka" ILIKE 'versa%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Mammut' WHERE "Znacka" ILIKE 'mam%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'FC Bayern Mnichov' WHERE "Znacka" ILIKE '%bay%' or "Znacka" ILIKE '%munch%' or "Znacka" ILIKE '%1860%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'FC Liverpool' WHERE "Znacka" ILIKE '%liverp%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Louis Vuitton' WHERE "Znacka" ILIKE '%loui%' or "Znacka" ILIKE '% vuit%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Dolce & Gabbana' WHERE "Znacka" ILIKE '%dolce%' or "Znacka" ILIKE '%D&G'  or "Znacka" ILIKE 'dg%' or "Znacka" ILIKE 'D+%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Burberry' WHERE "Znacka" ILIKE '%burb%' or "Znacka" ILIKE 'burrbe%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Chanel' WHERE "Znacka" ILIKE '%chan%' or "Znacka" ILIKE 'cc';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Armani' WHERE "Znacka" ILIKE '%arma%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Diesel' WHERE "Znacka" ILIKE '%dies%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'BMW' WHERE "Znacka" ILIKE '%bm%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Apple' WHERE "Znacka" ILIKE '%appl%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Crocs' WHERE "Znacka" ILIKE '%croc%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Puma' WHERE "Znacka" ILIKE '%pum%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'retrocedule' WHERE "Znacka" ILIKE '%retro%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Hugo Boss' WHERE "Znacka" ILIKE '%hugo%'or "Znacka" ILIKE 'bos%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Lacoste' WHERE "Znacka" ILIKE '%laco%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Jack Daniels' WHERE "Znacka" ILIKE 'Jack%daniel%' or "Znacka" ILIKE '%jack danie%' or "Znacka" ILIKE '%daniels%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Wellensteyn' WHERE "Znacka" ILIKE '%well%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Daniel Wellington' WHERE "Znacka" ILIKE '%welli%' or "Znacka" ILIKE '%welington';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'FC Manchester United' WHERE "Znacka" ILIKE '%manch%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'FC Chelsea' WHERE "Znacka" ILIKE '%chels%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Adidas' WHERE "Znacka" ILIKE '%adid%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Puma' WHERE "Znacka" ILIKE '%pum%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Hello Kitty' WHERE "Znacka" ILIKE '%hello%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Prada' WHERE "Znacka" ILIKE '%prad%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Fox' WHERE "Znacka" ILIKE '%fox%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'VW - Volkswagen' WHERE "Znacka" ILIKE '%volk%' or "Znacka" ILIKE '%vw%' or "Znacka" ILIKE 'vols%' or 
+"Znacka" ILIKE '%vagen' or "Znacka" ILIKE '%wagen' or "Znacka" ILIKE 'volg%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'FC Barcelona' WHERE "Znacka" ILIKE '%barc%' or "Znacka" ILIKE 'fcb';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'FC Koln' WHERE "Znacka" ILIKE '%koln%' or "Znacka" ILIKE '%fc k%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Durex' WHERE "Znacka" ILIKE '%durex%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Rex' WHERE "Znacka" ILIKE '%rex%' and ("Vyrobek" ilike '%aviv%' or "Vyrobek" ilike '%prac%');
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Mercedes-Benz' WHERE "Znacka" ILIKE '%merc%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Paul Frank' WHERE "Znacka" ILIKE '%pau% %fran%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Eintracht Frankfurt' WHERE "Znacka" ILIKE '%eint%' or "Znacka" ILIKE '%frankf%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Calvin Klein' WHERE "Znacka" ILIKE '%calv%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Jack Wolfskin' WHERE "Znacka" ILIKE '%wolfsk%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'FC VFL Wolfsburg' WHERE "Znacka" ILIKE '%wolfsb%'or"Znacka" ILIKE 'wolsb%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Ed Hardy' WHERE "Znacka" ILIKE '%hardy%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Hollister' WHERE "Znacka" ILIKE '%hollister%' or "Znacka" ILIKE  '%holister%' or "Znacka" ILIKE  '%hoolis%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Scholl' WHERE "Znacka" ILIKE '%schol%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'G-Star Raw' WHERE "Znacka" ILIKE '%g%star%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Rockstar' WHERE "Znacka" ILIKE 'rock%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Hard Rock Cafe' WHERE "Znacka" ILIKE 'hard%rock%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Red Bull' WHERE "Znacka" ILIKE 'red%' or "Znacka" ILIKE 'rebul';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Ralph Lauren' WHERE "Znacka" ILIKE 'ralph%' or "Znacka" ILIKE 'polo%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Harley-Davidson' WHERE "Znacka" ILIKE 'harley%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Audi' WHERE "Znacka" ILIKE 'audi';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Bench' WHERE "Znacka" ILIKE 'bench';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Ice age' WHERE "Znacka" ILIKE 'ice%age';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Ice Watch' WHERE "Znacka" ILIKE 'ice %watc%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Ferrari' WHERE "Znacka" ILIKE 'fer%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Monster High' WHERE "Znacka" ILIKE 'monster hig%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'George Gina & Lucy' WHERE "Znacka" ILIKE '%gina%' or "Znacka" ILIKE 'gg%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Monster' WHERE "Znacka" ILIKE '%monster' or "Znacka" ILIKE '%ener%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Ray-Ban' WHERE "Znacka" ILIKE '%ray%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Kawasaki' WHERE "Znacka" ILIKE 'kawa%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'New York Yankees' WHERE "Znacka" ILIKE 'new%york%' or "Znacka" ILIKE 'NY';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'New Era' WHERE "Znacka" ILIKE '%new%era%' or "Znacka" ILIKE '59%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'New Balance' WHERE "Znacka" ILIKE 'new%bal%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Paco Rabanne' WHERE "Znacka" ILIKE 'paco%' or "Znacka" ILIKE '%raban%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Mazda' WHERE "Znacka" ILIKE 'mazda%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Longchamp' WHERE "Znacka" ILIKE '%champ';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Porsche' WHERE "Znacka" ILIKE 'por%' or "Znacka" ILIKE 'posch%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'FC Arsenal' WHERE "Znacka" ILIKE 'ars%' or "Znacka" ILIKE '%aresenal%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Eastpack' WHERE "Znacka" ILIKE 'east%' or "Znacka" ILIKE 'eas%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Hasbro' WHERE "Znacka" ILIKE 'furb%' or "Znacka" ILIKE '%hasb%'or "Znacka" ILIKE '%pok%' or "Znacka" ILIKE '%pony%' or "Znacka" ILIKE '%star wars' or "Znacka" ILIKE '%pikachu';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Angry Birds' WHERE "Znacka" ILIKE 'angry%' or "Znacka" ILIKE '%bird%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Hannah Montana' WHERE "Znacka" ILIKE '%monta%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Nokia' WHERE "Znacka" ILIKE '%noki%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Superman' WHERE "Znacka" ILIKE 'super%man%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Mario' WHERE "Znacka" ILIKE '%mario%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Sog' WHERE "Znacka" ILIKE '%sog%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Christian Dior' WHERE "Znacka" ILIKE '%fahre%' or "Znacka" ILIKE '%dior%' ;
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Columbia' WHERE "Znacka" ILIKE '%colum%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Spiderman' WHERE "Znacka" ILIKE '%spider%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Opel' WHERE "Znacka" ILIKE '%opel%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Šmoulové' WHERE "Znacka" ILIKE '%šmoul%' or "Znacka" ILIKE '%smurf%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Fila' WHERE "Znacka" ILIKE '%fila%'or "Znacka" ILIKE '%phila%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Yamaha' WHERE "Znacka" ILIKE '%yama%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Joop' WHERE "Znacka" ILIKE '%Joop%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Simpsons' WHERE "Znacka" ILIKE '%simpson%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'FC AC Milano' WHERE "Znacka" ILIKE '%milan%' or "Znacka" ILIKE 'ac m%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Apple - Beats by Dr. Dre' WHERE "Znacka" ILIKE '%beats%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Suzuki' WHERE "Znacka" ILIKE '%suzuki%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Pandora' WHERE "Znacka" ILIKE '%pandora%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Sneaker' WHERE "Znacka" ILIKE '%sneaker%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Mimoni - Minions' WHERE "Znacka" ILIKE '%minions%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Sneaker' WHERE "Znacka" ILIKE '%sneaker%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Guess' WHERE "Znacka" ILIKE '%guess%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Chicago Bulls' WHERE "Znacka" ILIKE '%bulls%'or "Znacka" ILIKE '%buls%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Amstaff' WHERE "Znacka" ILIKE '%amstaff%' or "Znacka" ILIKE '%staf%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Gas Monkey Garage' WHERE "Znacka" ILIKE '%monkey%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Camp David' WHERE "Znacka" ILIKE '%camp david%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Honda' WHERE "Znacka" ILIKE '%honda%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'FC BVB Borussia Dortmund' WHERE "Znacka" ILIKE '%bvb%' or "Znacka" ILIKE '%Borussia%'  or 
+"Znacka" ILIKE '%Borusia%' or "Znacka" ILIKE '%dortmund%' or "Znacka" ILIKE 'B.V.%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Škoda' WHERE "Znacka" ILIKE '%koda%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Yakuza' WHERE "Znacka" ILIKE '%yakuza%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Salomon' WHERE "Znacka" ILIKE '%salomon%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Hermes' WHERE "Znacka" ILIKE '%hermes%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Tangle Teezer' WHERE "Znacka" ILIKE '%tangle%'or "Znacka" ILIKE '%pulfrey';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Peugeot' WHERE "Znacka" ILIKE '%peugeot%' or "Znacka" ILIKE 'peuguet'or "Znacka" ILIKE 'peguet'or 
+"Znacka" ILIKE 'Peugot';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Sponge Bob' WHERE "Znacka" ILIKE '%sponge%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'O Bag' WHERE "Znacka" ILIKE '%bag%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'MCM' WHERE "Znacka" ILIKE '%mcm%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Moncler' WHERE "Znacka" ILIKE '%moncler%' or "Znacka" ILIKE '%monsler%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Givenchy' WHERE "Znacka" ILIKE '%givenchy%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Burton' WHERE "Znacka" ILIKE '%burton%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Bogner' WHERE "Znacka" ILIKE '%bogner%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'KTM' WHERE "Znacka" ILIKE '%ktm%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'DOPE' WHERE "Znacka" ILIKE '%dope%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'DC' WHERE "Znacka" ILIKE '%dc%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Ford' WHERE "Znacka" ILIKE '%ford%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'FC Real Madrid' WHERE "Znacka" ILIKE '%real madrid%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Moschino' WHERE "Znacka" ILIKE '%moschino%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Breitling' WHERE "Znacka" ILIKE '%breitling%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Smile' WHERE "Znacka" ILIKE '%smile%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Smiley' WHERE "Znacka" ILIKE '%smiley%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Playboy' WHERE "Znacka" ILIKE '%playboy%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Gant' WHERE "Znacka" ILIKE '%gant%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Renault' WHERE "Znacka" ILIKE '%renault%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Toyota' WHERE "Znacka" ILIKE '%toyota%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Volvo' WHERE "Znacka" ILIKE '%volvo%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Vans' WHERE "Znacka" ILIKE '%vans%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Rolex' WHERE "Znacka" ILIKE '%rolex%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Champion' WHERE "Znacka" ILIKE '%champion%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Yves Saint Laurent' WHERE "Znacka" ILIKE '%yves%' or "Znacka" ILIKE 'ysl';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Nintendo' WHERE "Znacka" ILIKE '%nintendo%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Seat' WHERE "Znacka" ILIKE '%seat%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Billabong' WHERE "Znacka" ILIKE '%billabong%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Ellesse' WHERE "Znacka" ILIKE '%ellesse%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Dragon' WHERE "Znacka" ILIKE 'dragon%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Transformers' WHERE "Znacka" ILIKE 'transformer%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'GS' WHERE "Znacka" ILIKE 'gs';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Shaun' WHERE "Znacka" ILIKE '%shaun' or "Znacka" ILIKE 'shaun the%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Lonsdale' WHERE "Znacka" ILIKE '%dale' or "Znacka" ILIKE 'lonsdate';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'True Religion' WHERE "Znacka" ILIKE '%religion%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Fiat' WHERE "Znacka" ILIKE 'fiat';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'La Martina' WHERE "Znacka" ILIKE '%martina';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'FC Schalke' WHERE "Znacka" ILIKE '%schalke%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Barbie' WHERE "Znacka" ILIKE '%barbie%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Scania' WHERE "Znacka" ILIKE '%scania%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Esprit' WHERE "Znacka" ILIKE '%esprit%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Citroen' WHERE "Znacka" ILIKE '%citroen%' or "Znacka" ILIKE 'Citroën';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Beyblade' WHERE "Znacka" ILIKE '%beyblade%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Subaru' WHERE "Znacka" ILIKE '%subaru%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Jeep' WHERE "Znacka" ILIKE '%jeep%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Nisan' WHERE "Znacka" ILIKE '%nisan%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Hyundai' WHERE "Znacka" ILIKE '%hyund%' or "Znacka" ILIKE 'hund%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'DKNY' WHERE "Znacka" ILIKE '%DKNY%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Chevrolet Corvette' WHERE "Znacka" ILIKE '%chevrolet%' or "Znacka" ILIKE 'corve%' or "Znacka" ILIKE 'Cevrolet';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Alfa Romeo' WHERE "Znacka" ILIKE '%romeo%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Rammstein' WHERE "Znacka" ILIKE '%rammstein%' or "Znacka" ILIKE 'ramstain' or "Znacka" ILIKE 'ramstein';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Dreamworks' WHERE "Znacka" ILIKE '%dreamworks%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Kia' WHERE "Znacka" ILIKE 'kia';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Beyblade' WHERE "Znacka" ILIKE '%beyblade%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Die Wilden Kerle' WHERE "Znacka" ILIKE '%wilden%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Asics' WHERE "Znacka" ILIKE '%asics%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Kenzo' WHERE "Znacka" ILIKE '%kenzo%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Die Wilden Kerle' WHERE "Znacka" ILIKE '%wilden%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Fendi' WHERE "Znacka" ILIKE '%fendi%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'FC Juventus' WHERE "Znacka" ILIKE 'juventus';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Metallica' WHERE "Znacka" ILIKE 'metallica' or "Znacka" ILIKE 'metalica' or "Znacka" ILIKE 'mett%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Cartier' WHERE "Znacka" ILIKE 'cartier' or "Znacka" ILIKE 'cortier';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Samsung' WHERE "Znacka" ILIKE 'samsung' or "Znacka" ILIKE 'samsu%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Lexus' WHERE "Znacka" ILIKE 'lexus';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Mitsubishi' WHERE "Znacka" ILIKE 'mitsubishi' or "Znacka" ILIKE '%bis%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Camel' WHERE "Znacka" ILIKE 'camel';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Lexus' WHERE "Znacka" ILIKE 'lexus';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Masha and The Bear' WHERE "Znacka" ILIKE '%masha%' or "Znacka" ILIKE '%medvěd%'  or "Znacka" ILIKE 'Mascha%' or
+"Znacka" ILIKE '%mědvěd%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'The Walt Disney' WHERE "Znacka" ILIKE '%disney%'or "Znacka" ILIKE '%sofia%' or "Znacka" ILIKE 'mickey%' or 
+"Znacka" ILIKE '%mouse' or "Znacka" ILIKE '%minnie' or "Znacka" ILIKE '%minie' or "Znacka" ILIKE '%frozen%'  or "Znacka" ILIKE 'led%' or
+"Znacka" ILIKE '%cars%' or "Znacka" ILIKE '%pikachu%' or "Znacka" ILIKE '%101 %' or "Znacka" ILIKE 'pooh%' or "Znacka" ILIKE '%sněhur%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Rolling Stones' WHERE "Znacka" ILIKE 'roling%' or "Znacka" ILIKE 'rolling%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Brnowning' WHERE "Znacka" ILIKE 'brnowning' or "Znacka" ILIKE 'browning';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Geprüfte Sicherheit' WHERE "Znacka" ILIKE '%sicherheit';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Diddl & Friends' WHERE "Znacka" ILIKE 'diddl%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Nissan' WHERE "Znacka" ILIKE 'nissan';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Replay' WHERE "Znacka" ILIKE 'replay';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 's.Oliver' WHERE "Znacka" ILIKE 's.Oliver' or "Znacka" ILIKE '%oliver';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Omega' WHERE "Znacka" ILIKE 'omega';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Bvlgari' WHERE "Znacka" ILIKE 'bvlgari' or "Znacka" ILIKE 'bulgari' or  "Znacka" ILIKE 'BvGari';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'UGG' WHERE "Znacka" ILIKE 'ugg';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Christian Audigier' WHERE "Znacka" ILIKE '%audigier' or "Znacka" ILIKE '%smet';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Paw Patrol' WHERE "Znacka" ILIKE '%patrol';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Mr. Bean' WHERE "Znacka" ILIKE '%bean%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Loom Bands' WHERE "Znacka" ILIKE '%loom%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Bohemia Crystal' WHERE "Znacka" ILIKE 'bohemia';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Fishbone' WHERE "Znacka" ILIKE '%fishbone%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Balenciaga' WHERE "Znacka" ILIKE 'balenciaga';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Hublot' WHERE "Znacka" ILIKE 'hublot';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Nemo' WHERE "Znacka" ILIKE '%nemo%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Jaguar' WHERE "Znacka" ILIKE 'jaguar';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Coca Cola' WHERE "Znacka" ILIKE '%cola%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'FC Paris Saint Germain' WHERE "Znacka" ILIKE '%germain';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'WD - 40' WHERE "Znacka" ILIKE '%wd%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Bentley' WHERE "Znacka" ILIKE 'bentley';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'The North Face' WHERE "Znacka" ILIKE '%north%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Epic Games - Fortnite' WHERE "Znacka" ILIKE '%fortnite%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Abercombie & Fitch' WHERE "Znacka" ILIKE '%fitch%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Jaragar' WHERE "Znacka" ILIKE 'jaragar';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Makita' WHERE "Znacka" ILIKE 'makita';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'FC TSG 1899 Hoffenheim' WHERE "Znacka" ILIKE '%hoffenheim%' or "Znacka" ILIKE '%hoffe%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Ecko Unlimited' WHERE "Znacka" ILIKE '%ecko%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Roberto Cavalli' WHERE "Znacka" ILIKE '%cavalli%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Marlboro' WHERE "Znacka" ILIKE '%marlbo%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'PitBull West Coast' WHERE "Znacka" ILIKE 'pitbul%' or "Znacka" ILIKE 'pit%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'OCB' WHERE "Znacka" ILIKE 'ocb';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Kosmodisk' WHERE "Znacka" ILIKE 'kosmodisk';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'FC Norimberk' WHERE "Znacka" ILIKE 'fc n%' or "Znacka" ILIKE '%fcn' or "Znacka" ILIKE '%mberg'or 
+"Znacka" ILIKE '%rnberg' or "Znacka" ILIKE '%fcn%' or "Znacka" ILIKE 'Norimberk';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Karl Kani jeans' WHERE "Znacka" ILIKE 'kani%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Supreme' WHERE "Znacka" ILIKE 'supreme';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Die Wilde Kerle' WHERE "Znacka" ILIKE '%kerle%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'DFB' WHERE "Znacka" ILIKE '%bundes%' or "Znacka" ILIKE '%deutscher%' or "Znacka" ILIKE '%fuss%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Gillette' WHERE "Znacka" ILIKE '%gil%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Ariel' WHERE "Znacka" ILIKE '%ariel%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Heineken' WHERE "Znacka" ILIKE 'heinek%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Iveco' WHERE "Znacka" ILIKE 'iveco';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Sony' WHERE "Znacka" ILIKE 'sony';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Iron Maiden' WHERE "Znacka" ILIKE 'iron%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Kingston Technology' WHERE "Znacka" ILIKE 'king%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Pilot' WHERE "Znacka" ILIKE 'pilot';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'FC Hamburger SV' WHERE "Znacka" ILIKE '%hambur%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Marc Jacobs' WHERE "Znacka" ILIKE '%jacob%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Miss Sixty' WHERE "Znacka" ILIKE 'miss%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Gormiti' WHERE "Znacka" ILIKE 'gormit%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Bruno Banani' WHERE "Znacka" ILIKE 'bruno%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Gerber' WHERE "Znacka" ILIKE 'gerber%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Kung Fu Panda' WHERE "Znacka" ILIKE '%panda';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Camel' WHERE "Znacka" ILIKE '%camel%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'A. Lange & Sohne' WHERE "Znacka" ILIKE '%lange%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'TAG Heuer' WHERE "Znacka" ILIKE '%heuer%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Chipmunkové' WHERE "Znacka" ILIKE '%chipmunk%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'IWC' WHERE "Znacka" ILIKE '%iwc%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Snipes' WHERE "Znacka" ILIKE '%snipe%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Patek Philippe' WHERE "Znacka" ILIKE '%patek%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Philipp Plein' WHERE "Znacka" ILIKE '%plein%' or "Znacka" ILIKE 'plein'or "Znacka" ILIKE '%philipp%' or 
+"Znacka" ILIKE '%phillip%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Philip Persio' WHERE "Znacka" ILIKE '%persio%' or "Znacka" ILIKE '%presio%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Philips' WHERE "Znacka" ILIKE 'philips';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Panerai' WHERE "Znacka" ILIKE '%panerai%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Rado' WHERE "Znacka" ILIKE 'rado';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Element' WHERE "Znacka" ILIKE 'element';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Man' WHERE "Znacka" ILIKE 'man';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Batman' WHERE "Znacka" ILIKE 'bat%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Volcom' WHERE "Znacka" ILIKE 'volcom';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Tiffany & Co' WHERE "Znacka" ILIKE 'tif%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Hummer' WHERE "Znacka" ILIKE 'hum%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Hero Factory' WHERE "Znacka" ILIKE 'hero%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'West' WHERE "Znacka" ILIKE '%west%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Oakley' WHERE "Znacka" ILIKE '%oak%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'S.T. Dupont' WHERE "Znacka" ILIKE '%dupon%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Dora' WHERE "Znacka" ILIKE 'dora';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Smith & Wesson' WHERE "Znacka" ILIKE '%smith%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'No Fear' WHERE "Znacka" ILIKE '%fear';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Montblanc' WHERE "Znacka" ILIKE '%blanc';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Reckitt Benckiser' WHERE "Znacka" ILIKE 'reckit%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'FC VFB Stuttgart' WHERE "Znacka" ILIKE '%stut%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Thor Steinar' WHERE "Znacka" ILIKE '%thor%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Southpole' WHERE "Znacka" ILIKE '%south%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'DAF' WHERE "Znacka" ILIKE '%daf%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Hasbro' WHERE "Znacka" ILIKE '%pet%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Von Dutch' WHERE "Znacka" ILIKE '%dutc%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Bob the Builder' WHERE "Znacka" ILIKE '%bořek %' or "Znacka" ILIKE '%bob th%' or "Znacka" ILIKE '%build%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'U - Boat' WHERE "Znacka" ILIKE '%boat%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Tonino Lamborghini' WHERE "Znacka" ILIKE '% lambo%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'FUBU' WHERE "Znacka" ILIKE '%fubu%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Vacheron Constantin' WHERE "Znacka" ILIKE '%vacher%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Carrera' WHERE "Znacka" ILIKE '%carrera%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Glashutte' WHERE "Znacka" ILIKE '%glas%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Adio' WHERE "Znacka" ILIKE 'adio';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'FC Hertha Berlin' WHERE "Znacka" ILIKE 'hertha %' or "Znacka" ILIKE '%bsc%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Zip Sox' WHERE "Znacka" ILIKE 'zip %';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'FC Slavia Praha' WHERE "Znacka" ILIKE '%slavia%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'FC AC Sparta' WHERE "Znacka" ILIKE '%spart%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'FC Werder Bremen' WHERE "Znacka" ILIKE '%brem%' or "Znacka" ILIKE '%werde%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Kappa' WHERE "Znacka" ILIKE '%kap%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Audemars Piguet' WHERE "Znacka" ILIKE '%pigu%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Buffalo' WHERE "Znacka" ILIKE '%buff%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Cadillac' WHERE "Znacka" ILIKE 'cadil%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'FC Atletico Madrid' WHERE "Znacka" ILIKE '%atlet%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Motorhead' WHERE "Znacka" ILIKE '%rhead';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Maseratti' WHERE "Znacka" ILIKE 'mase%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'How to train your Dragon' WHERE "Znacka" ILIKE 'how %';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Mustang' WHERE "Znacka" ILIKE 'must%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Pall Mall' WHERE "Znacka" ILIKE 'pall%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'HDMI' WHERE "Znacka" ILIKE '%hdmi%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Avengers' WHERE "Znacka" ILIKE '%aveng%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Superdry' WHERE "Znacka" ILIKE 'su%dry';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Digimon' WHERE "Znacka" ILIKE 'digi%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Smet' WHERE "Znacka" ILIKE '%smet%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Crazy Frog' WHERE "Znacka" ILIKE '%crazy%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'SD karta' WHERE "Znacka" ILIKE 'sd %' or "Znacka" ILIKE 'sd' or "Znacka" ILIKE 'sd%' or "Znacka" ILIKE 'micro%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Snoopy' WHERE "Znacka" ILIKE 'snoopy';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'GS' WHERE "Znacka" ILIKE 'GS %' or "Znacka" ILIKE 'GS';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Ducati' WHERE "Znacka" ILIKE 'ducati';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Bunchems!' WHERE "Znacka" ILIKE '%bunch%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Johnny Blaze' WHERE "Znacka" ILIKE '%blaze%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Planes' WHERE "Znacka" ILIKE '%plane%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'SAAB' WHERE "Znacka" ILIKE '%saab%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Tripp Trapp' WHERE "Znacka" ILIKE '%trip%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'iPod' WHERE "Znacka" ILIKE '%pod%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'As Seen On Tv' WHERE "Znacka" ILIKE '%seen%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Kandar' WHERE "Znacka" ILIKE '%kandar%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Stihl' WHERE "Znacka" ILIKE '%stihl%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'NBA' WHERE "Znacka" ILIKE '%nba%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Al Fakher' WHERE "Znacka" ILIKE '%fakher%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Black Sabbath' WHERE "Znacka" ILIKE '%sabbath%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Chicago' WHERE "Znacka" ILIKE '%blackhawk%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'NutriBullet' WHERE "Znacka" ILIKE '%nutri%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Jil Sander' WHERE "Znacka" ILIKE '%sander%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Madagaskar' WHERE "Znacka" ILIKE '%madagaskar%' or "Znacka" ILIKE 'madag%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Mojang Synergies AB' WHERE "Znacka" ILIKE '%%synerg%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Toy Story' WHERE "Znacka" ILIKE '%story%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Helly Hansen' WHERE "Znacka" ILIKE '%hansen%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Medvídek Pú' WHERE "Znacka" ILIKE 'medv%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Geneva' WHERE "Znacka" ILIKE '%geneva%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Moon' WHERE "Znacka" ILIKE '%moon%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Alpha Industries' WHERE "Znacka" ILIKE '%alpha%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Reebok' WHERE "Znacka" ILIKE '%reeb%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Guinness' WHERE "Znacka" ILIKE '%guin%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Zoobles' WHERE "Znacka" ILIKE '%zoobl%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'A.C.A.B.' WHERE "Znacka" ILIKE '%a.c.a%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Stine Island' WHERE "Znacka" ILIKE 'stone%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Fisher-Price' WHERE "Znacka" ILIKE 'fisher%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Chopard' WHERE "Znacka" ILIKE 'chopard%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Krteček' WHERE "Znacka" ILIKE '%krte%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Eberhard' WHERE "Znacka" ILIKE '%eberh%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Bakugan' WHERE "Znacka" ILIKE 'baku%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Samlux' WHERE "Znacka" ILIKE 'saml%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Swivel Sweeper' WHERE "Znacka" ILIKE 'swivel%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Wilson' WHERE "Znacka" ILIKE '%wilson%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Trx' WHERE "Znacka" ILIKE '%trx%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'HB' WHERE "Znacka" ILIKE 'hb%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'LM' WHERE "Znacka" ILIKE 'lm%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Police' WHERE "Znacka" ILIKE 'police%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Nirvana' WHERE "Znacka" ILIKE 'nirvana%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Picasso' WHERE "Znacka" ILIKE 'picasso%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Audemars Piguet' WHERE "Znacka" ILIKE 'ap';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'K-Swiss' WHERE "Znacka" ILIKE '%swis%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Fleshlight' WHERE "Znacka" ILIKE '%flesh%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Vox' WHERE "Znacka" ILIKE '%vox%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Everlast' WHERE "Znacka" ILIKE '%everlast%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'R1' WHERE "Znacka" ILIKE '%r1%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Yamaha' WHERE "Znacka" ILIKE '%jamaha%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Chicago Bulls' WHERE "Znacka" ILIKE '%chicago%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Paco Rabanne' WHERE "Znacka" ILIKE '%pacco%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'The Walt Disney' WHERE "Znacka" ILIKE '%princess%' or "Znacka" ILIKE 'Disny %';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Klimatex Rena' WHERE "Znacka" ILIKE '%rena%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Gucci' WHERE "Znacka" ILIKE '%gicci%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Manowar' WHERE "Znacka" ILIKE '%mano%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Nemo' WHERE "Znacka" ILIKE '%nemo%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Beast' WHERE "Znacka" ILIKE '%beac' or "Znacka" ILIKE '%beast%' or "Znacka" ILIKE '%betats%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Hatchimals' WHERE "Znacka" ILIKE 'hatchimal%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Lego' WHERE "Znacka" ILIKE 'chima';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Pierre Cardin' WHERE "Znacka" ILIKE 'pierre%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Franck Muller' WHERE "Znacka" ILIKE '%muller%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Christian Dior' WHERE "Znacka" ILIKE '%jador%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Paco Rabanne' WHERE "Znacka" ILIKE '%million%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Michael Kors' WHERE "Znacka" ILIKE '%kors%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'FC FIFA' WHERE "Znacka" ILIKE '%fifa%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'TAG Heuer' WHERE "Znacka" ILIKE '%heur%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Hollister' WHERE "Znacka" ILIKE '%holliste%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Revlon' WHERE "Znacka" ILIKE '%charlie%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'FCK' WHERE "Znacka" ILIKE '%fck%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'LD' WHERE "Znacka" ILIKE 'ld %';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'UGG' WHERE "Znacka" ILIKE 'ugg %';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Land Rover' WHERE "Znacka" ILIKE '%rover%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Tokio Hotel' WHERE "Znacka" ILIKE 'tokio %';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Timbrland' WHERE "Znacka" ILIKE 'timbrland%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Bionicle' WHERE "Znacka" ILIKE '%bioni%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Polaroid' WHERE "Znacka" ILIKE 'pola%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Wellensteyn' WHERE "Znacka" ILIKE 'velenst%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Medvídek Pú' WHERE "Znacka" ILIKE 'winni%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'FC Premier League' WHERE "Znacka" ILIKE 'premier%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Nemo' WHERE "Znacka" ILIKE '%nem%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Jordan' WHERE "Znacka" ILIKE 'jordan%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Milaoli' WHERE "Znacka" ILIKE '%milaoli%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Levis' WHERE "Znacka" ILIKE '%levis%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Delphi' WHERE "Znacka" ILIKE '%delphi%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Balenciaga' WHERE "Znacka" ILIKE '%balencia%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Jim Beam' WHERE "Znacka" ILIKE '%jim%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Slash' WHERE "Znacka" ILIKE '%slash%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Mimoni - Minions' WHERE "Znacka" ILIKE '%despic%'or "Znacka" ILIKE '%minion';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Monsters' WHERE "Znacka" ILIKE '%íšerk%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Porsche' WHERE "Znacka" ILIKE '%porsche%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Zippo' WHERE "Znacka" ILIKE '%zippo%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Audi' WHERE "Znacka" ILIKE 'značka AUDI' or "Znacka" ILIKE 'Audi tabat%' or "Znacka" ILIKE 'Audi %';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'audio - video' WHERE "Znacka" ILIKE '%audio%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'JBL' WHERE "Znacka" ILIKE '%jbl%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Peppa Pig' WHERE "Znacka" ILIKE '% pepa%' or "Znacka" ILIKE '% peppa';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Pepe Jeans' WHERE "Znacka" ILIKE '%pepe%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'PitBull West Coast' WHERE "Znacka" ILIKE '%pitb%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'FC Barcelona' WHERE "Znacka" ILIKE '% fcb%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'FC Paris Saint Germain' WHERE "Znacka" ILIKE 'Paris %';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Friends' WHERE "Znacka" ILIKE 'friend%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Pilot' WHERE "Znacka" ILIKE 'pilot %';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Citroen' WHERE "Znacka" ILIKE 'citr%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'The Walt Disney' WHERE "Znacka" ILIKE 'minn%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'FC Ajax Amsterdam' WHERE "Znacka" ILIKE 'ajax%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Jeep' WHERE "Znacka" ILIKE 'jeap%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Road Star' WHERE "Znacka" ILIKE 'road%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Rovio' WHERE "Znacka" ILIKE 'rovio%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Cold Steel' WHERE "Znacka" ILIKE 'cold%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Mitsubishi' WHERE "Znacka" ILIKE 'Mitsubichi';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Rapid Wien' WHERE "Znacka" ILIKE 'rapid%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Samsoe' WHERE "Znacka" ILIKE 'sams%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Tiffany & Co' WHERE "Znacka" ILIKE '%tiff%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Fiat' WHERE "Znacka" ILIKE '%fiat%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'VW - Volkswagen' WHERE "Znacka" ILIKE '%wv%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Stela Artois' WHERE "Znacka" ILIKE '%artois%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Lego' WHERE "Znacka" ILIKE '%mine%' or "Znacka" ILIKE 'nexo%' or "Znacka" ILIKE '%nija%' or "Znacka" ILIKE '%heroe%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Teletubbies' WHERE "Znacka" ILIKE '%teleb%' or "Znacka" ILIKE 'teletub%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Chiemsee' WHERE "Znacka" ILIKE '%chiem%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Dragon' WHERE "Znacka" ILIKE '%jak se %';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Nicer Dicer Plus' WHERE "Znacka" ILIKE '%nicer dicer%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'FC Barcelona' WHERE "Znacka" ILIKE 'F.C.B%' or "Znacka" ILIKE '% Barcelona';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Suzuki' WHERE "Znacka" ILIKE '%suzik%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Carlsberg' WHERE "Znacka" ILIKE '%carlsb%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Gap' WHERE "Znacka" ILIKE '%gap%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Lví král' WHERE "Znacka" ILIKE 'lví %';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'FC Bayern Mnichov' WHERE "Znacka" ILIKE '%bayern%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'FC Bayer Leverkusen' WHERE "Znacka" ILIKE '%leverk%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Game of Thrones' WHERE "Znacka" ILIKE '%game%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Spy' WHERE "Znacka" ILIKE '%spy%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Aston Martin' WHERE "Znacka" ILIKE '%aston%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'FC AS Monaco' WHERE "Znacka" ILIKE '%monaco%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Rolex' WHERE "Znacka" ILIKE '%rollex%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Metallica' WHERE "Znacka" ILIKE '%metalice%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Rolls Royce' WHERE "Znacka" ILIKE '%rolls%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'True Religion' WHERE "Znacka" ILIKE '%reel%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Phenix' WHERE "Znacka" ILIKE '%phenix%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Billabong' WHERE "Znacka" ILIKE '%billa%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Franck Muller' WHERE "Znacka" ILIKE '%frank m%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Eintracht Frankfurt' WHERE "Znacka" ILIKE '%franktf%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Bvlgari' WHERE "Znacka" ILIKE '%bvlgar%' or "Znacka" ILIKE '%bulgar%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Casio' WHERE "Znacka" ILIKE '%casio%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Mercedes-Benz' WHERE "Znacka" ILIKE '%mereced%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Ray-Ban' WHERE "Znacka" ILIKE '%raiban%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Schmidt & Wesson' WHERE "Znacka" ILIKE '%schmid%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Euphorie' WHERE "Znacka" ILIKE '%euphor%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Dodge' WHERE "Znacka" ILIKE '%dodg%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Davidoff' WHERE "Znacka" ILIKE '%davidof%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Paw Patrol' WHERE "Znacka" ILIKE 'paw %';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Peppa Pig' WHERE "Znacka" ILIKE 'peepa%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Dvectis' WHERE "Znacka" ILIKE 'dvect%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Miss Sixty' WHERE "Znacka" ILIKE '%sixty';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'The Walt Disney' WHERE "Znacka" ILIKE '%maus';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Ice Watch' WHERE "Znacka" ILIKE '%watsch';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'FC Hertha Berlin' WHERE "Znacka" ILIKE '%herta%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'FC Karlruhe SC' WHERE "Znacka" ILIKE '%karlsr%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Didlina' WHERE "Znacka" ILIKE '%didlina%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'FC VFB Stuttgart' WHERE "Znacka" ILIKE '%stud%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Ballantines' WHERE "Znacka" ILIKE '%balant%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Paul Shark' WHERE "Znacka" ILIKE '%shark%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Hot Wheels' WHERE "Znacka" ILIKE '%hot wheel%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Fishbone' WHERE "Znacka" ILIKE '%fisch%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Rio' WHERE "Znacka" ILIKE 'rio';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Mario' WHERE "Znacka" ILIKE '%mario%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Emporio Armani' WHERE "Znacka" ILIKE '%armani%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Ohsen' WHERE "Znacka" ILIKE 'ohsen';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Volcom' WHERE "Znacka" ILIKE 'volcon';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Umberto Boosi' WHERE "Znacka" ILIKE 'boos%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Calvin Klein' WHERE "Znacka" ILIKE 'ethernity%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Jennifer Lopez' WHERE "Znacka" ILIKE 'jennifer%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'FC Borussia Mönchengladbach' WHERE "Znacka" ILIKE '%chengladbach' or "Znacka" ILIKE '%MGB';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Moschino' WHERE "Znacka" ILIKE 'moshino';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Bref' WHERE "Znacka" ILIKE 'bref%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Monopoly' WHERE "Znacka" ILIKE 'monopoly';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Red Bull' WHERE "Znacka" ILIKE '%red bull' or "Znacka" ILIKE 'Ted Bull';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Metalica' WHERE "Znacka" ILIKE '%metall%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'FC BVB Borussia Dortmund' WHERE "Znacka" ILIKE '%dorthmund%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Sharp' WHERE "Znacka" ILIKE 'sharp';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Marvel' WHERE "Znacka" ILIKE '%iron man';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Alpha Industries' WHERE "Znacka" ILIKE 'alfa indus%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Seat' WHERE "Znacka" ILIKE 'saat';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Champion' WHERE "Znacka" ILIKE '%campion';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Mini Cooper' WHERE "Znacka" ILIKE '%cooper';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'FC Arsenal' WHERE "Znacka" ILIKE '%arsena';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Škoda' WHERE "Znacka" ILIKE '%škod';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'New Era' WHERE "Znacka" ILIKE 'NERW%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Fossil' WHERE "Znacka" ILIKE 'fossil';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Yu-Gi-Oh' WHERE "Znacka" ILIKE 'yu-gi%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Snuff' WHERE "Znacka" ILIKE '%snuf%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Mitsubishi' WHERE "Znacka" ILIKE 'Mitshubichi';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Russell Athletic' WHERE "Znacka" ILIKE '%russell%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Kenwood' WHERE "Znacka" ILIKE 'kenwood';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Snuff' WHERE "Znacka" ILIKE '%snuf%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Hyundai' WHERE "Znacka" ILIKE 'Hyuynday';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'DFB' WHERE "Znacka" ILIKE '%deutschland%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Dragon' WHERE "Znacka" ILIKE '%Bezzubka%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'The Secret Life of Pets' WHERE "Znacka" ILIKE '%mazl%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'FC Arsenal' WHERE "Znacka" ILIKE '%arsenal%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Monster' WHERE "Znacka" ILIKE 'monter';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'PitBull West Coast' WHERE "Znacka" ILIKE '%pít%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Harley-Davidson' WHERE "Znacka" ILIKE '%harley%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'FC EAAAE' WHERE "Znacka" ILIKE '%eaaae%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Smely' WHERE "Znacka" ILIKE 'smely';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Universal City' WHERE "Znacka" ILIKE 'universal city';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'California' WHERE "Znacka" ILIKE 'californ%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'George Gina & Lucy' WHERE "Znacka" ILIKE '%g.g.l%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Shell' WHERE "Znacka" ILIKE 'Shell-likv.zkouškou';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Chlloe' WHERE "Znacka" ILIKE 'chloe';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Hugo Boss' WHERE "Znacka" ILIKE '%boss';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Roxy' WHERE "Znacka" ILIKE 'roxy';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'FC VFL Wolfsburg' WHERE "Znacka" ILIKE '%vfl%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'BWB' WHERE "Znacka" ILIKE 'bwb%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Osiris' WHERE "Znacka" ILIKE '%osiris%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Gormiti' WHERE "Znacka" ILIKE '%giochi%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Turbo' WHERE "Znacka" ILIKE '%turbo%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Hannah Montana' WHERE "Znacka" ILIKE '%hannah%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Lonsdale' WHERE "Znacka" ILIKE '%londsale';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'FC Barcelona' WHERE "Znacka" ILIKE '%barelona';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Wu Tang Clan' WHERE "Znacka" ILIKE 'wu-tang';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Ice Watch' WHERE "Znacka" ILIKE 'ice';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Shrek' WHERE "Znacka" ILIKE 'shrek';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Lacoste' WHERE "Znacka" ILIKE 'La Coste%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Die Wilden Kerle' WHERE "Znacka" ILIKE '%wilde%' or  "Znacka" ILIKE '%welden%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Charles Delon' WHERE "Znacka" ILIKE 'Charles Delon';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Didlina' WHERE "Znacka" ILIKE 'didl%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'FC Inter Milan' WHERE "Znacka" ILIKE 'inter M%' or "Znacka" ILIKE 'inter';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'FC Norimberk' WHERE "Znacka" ILIKE '%norimberk%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'FC Kaiserslautern' WHERE "Znacka" ILIKE '%kaise%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'The Incredibles' WHERE "Znacka" ILIKE '%incredi%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Dolce & Gabbana' WHERE "Znacka" ILIKE 'D&G%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Girard Perregaux' WHERE "Znacka" ILIKE '%perre%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'FC VFB Stuttgart' WHERE "Znacka" ILIKE '%sut%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'FC Hannover 96' WHERE "Znacka" ILIKE '%hanno%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Slipknot' WHERE "Znacka" ILIKE '%slipkn%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Aviator' WHERE "Znacka" ILIKE '%aviator%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Christian Dior' WHERE "Znacka" ILIKE '%poison%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Ray-Ban' WHERE "Znacka" ILIKE '%rey%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'LeCoultre' WHERE "Znacka" ILIKE '%coult%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'Breitling' WHERE "Znacka" ILIKE '%bretl%';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'G-Star Raw' WHERE "Znacka" ILIKE 'J Star';
+
+UPDATE "Zajisteni_skusobna" SET "Brand" = 'FC S.S. Lazio' WHERE "Znacka" ILIKE '%lacio';
+
+----------------------------------------------------------------------------------------------------------
+
+--upravy
+UPDATE "Zajisteni_skusobna" SET "Vyrobek" = 'přezka k pásku' where "Vyrobek" = 'přeska k pásku';
+
+UPDATE "Zajisteni_skusobna" SET "Vyrobek" = 'Despicable - hra' where "Vyrobek" ilike 'despicabl%';
+
+UPDATE "Zajisteni_skusobna" SET "Znacka" = 'Audi svítilna' where "Znacka" = 'Audi svítolna';
+
+UPDATE "Zajisteni_skusobna" SET "Vyrobek" = 'placatka' where "Znacka" = 'Placatka Harley D.';
+
+UPDATE "Zajisteni_skusobna" SET "Znacka" = 'Harley Davidson' where "Znacka" = 'Placatka Harley D.';
+
+UPDATE "Zajisteni_skusobna" SET "Vyrobek" = 'spona opasek' where "Znacka" = 'Gucci spona opasek';
+
+UPDATE "Zajisteni_skusobna" SET "Znacka" = 'Gucci' where "Znacka" = 'Gucci spona opasek';
+
+UPDATE "Zajisteni_skusobna" SET "Vyrobek" = 'polepky' where "Znacka" = 'Adidas polepky';
+
+UPDATE "Zajisteni_skusobna" SET "Znacka" = 'Adidas' where "Znacka" = 'Adidas polepky';
+
+UPDATE "Zajisteni_skusobna" SET "Vyrobek" = 'dres' where "Znacka" = 'FC Barcelona - dres';
+
+UPDATE "Zajisteni_skusobna" SET "Znacka" = 'FC Barcelona' where "Znacka" = 'FC Barcelona - dres';
+
+UPDATE "Zajisteni_skusobna" SET "Vyrobek" = 'ochranné známky' where "Znacka" = 'různé ochran. známky';
+
+UPDATE "Zajisteni_skusobna" SET "Vyrobek" = 'dres' where "Znacka" = 'FC Bayern - dres';
+
+UPDATE "Zajisteni_skusobna" SET "Znacka" = 'FC Bayern' where "Znacka" = 'FC Bayern - dres';
+
+UPDATE "Zajisteni_skusobna" SET "Vyrobek" = 'šála' where "Znacka" = 'FC Bayern - šála';
+
+UPDATE "Zajisteni_skusobna" SET "Znacka" = 'FC Bayern' where "Znacka" = 'FC Bayern - šála';
+
+UPDATE "Zajisteni_skusobna" SET "Vyrobek" = 'kšiltovka' where "Znacka" = 'FC Bayern - kšiltovk';
+
+UPDATE "Zajisteni_skusobna" SET "Znacka" = 'FC Bayern' where "Znacka" = 'FC Bayern - kšiltovk';
+
+UPDATE "Zajisteni_skusobna" SET "Vyrobek" = 'zimní čepice' where "Znacka" = 'BVB zimní čepice';
+
+UPDATE "Zajisteni_skusobna" SET "Znacka" = 'BVB' where "Znacka" = 'BVB zimní čepice';
+
+UPDATE "Zajisteni_skusobna" SET "Vyrobek" = 'dres' where "Znacka" = 'BVB - dres';
+
+UPDATE "Zajisteni_skusobna" SET "Znacka" = 'BVB' where "Znacka" = 'BVB - dres';
+
+UPDATE "Zajisteni_skusobna" SET "Vyrobek" = 'šála' where "Znacka" = 'FC Schalke 04 šála';
+
+UPDATE "Zajisteni_skusobna" SET "Znacka" = 'FC Schalke' where "Znacka" = 'FC Schalke 04 šála';
+
+UPDATE "Zajisteni_skusobna" SET "Vyrobek" = 'MP3' where "Znacka" = 'Apple MP3';
+
+UPDATE "Zajisteni_skusobna" SET "Znacka" = 'Apple' where "Znacka" = 'Apple MP3';
+
+UPDATE "Zajisteni_skusobna" SET "Vyrobek" = 'MP4' where "Znacka" = 'Apple MP4';
+
+UPDATE "Zajisteni_skusobna" SET "Znacka" = 'Apple' where "Znacka" = 'Apple MP4';
+
+UPDATE "Zajisteni_skusobna" SET "Vyrobek" = 'rádio' where "Znacka" = 'Apple rádio';
+
+UPDATE "Zajisteni_skusobna" SET "Znacka" = 'Apple' where "Znacka" = 'Apple rádio';
+
+UPDATE "Zajisteni_skusobna" SET "Vyrobek" = 'reproduktory' where "Znacka" = 'reproduktory BEATS';
+
+UPDATE "Zajisteni_skusobna" SET "Znacka" = 'Beats' where "Znacka" = 'reproduktory BEATS';
+
+UPDATE "Zajisteni_skusobna" SET "Vyrobek" = 'reproduktory' where "Znacka" = 'Beats - reproduktory';
+
+UPDATE "Zajisteni_skusobna" SET "Znacka" = 'Beats' where "Znacka" = 'Beats - reproduktory';
+
+UPDATE "Zajisteni_skusobna" SET "Vyrobek" = 'leginy' where "Znacka" = 'Hello Kity leginy';
+
+UPDATE "Zajisteni_skusobna" SET "Znacka" = 'Hello Kitty' where "Znacka" = 'Hello Kity leginy';
+
+UPDATE "Zajisteni_skusobna" SET "Vyrobek" = 'SD karta' where "ID_kontroly" = '221406190037101' or "ID_kontroly" = '221410040037001'  or "ID_kontroly" = '221410040251801';
+
+UPDATE "Zajisteni_skusobna" SET "Vyrobek" = 'micro SD' where "ID_kontroly" = '221410030037202';
+
+UPDATE "Zajisteni_skusobna" SET "Vyrobek" = 'obal na mobi' where "ID_kontroly" = '221411130251801';
+
+UPDATE "Zajisteni_skusobna" SET "Vyrobek" = 'samolepky' where "ID_kontroly" = '221411130251301';
+
+UPDATE "Zajisteni_skusobna" SET "Vyrobek" = 'tepláky' where "ID_kontroly" = '221410150204902';
+
+UPDATE "Zajisteni_skusobna" SET "Vyrobek" = 'MP3' where "ID_kontroly" = '221410040251801';
+
+UPDATE "Zajisteni_skusobna" SET "Vyrobek" = 'USB' where "ID_kontroly" = '221410040251801';
+
+UPDATE "Zajisteni_skusobna" SET "Vyrobek" = 'figurky' where "ID_kontroly" = '221706020043399';
+
+UPDATE "Zajisteni_skusobna" SET "Vyrobek" = 'polepky' where "ID_kontroly" = '221805100028702';
+
+UPDATE "Zajisteni_skusobna" SET "Vyrobek" = 'karetní hra' where "Vyrobek" = 'karetní ha';
+
+UPDATE "Zajisteni_skusobna" SET "Vyrobek" = 'strunová žací hlava' where "ID_kontroly" = '301910010038205';
+
+SELECT "ID_kontroly","Id_Zajisteni","Znacka", count("Vyrobek") FROM "Zajisteni_skusobna" where "Vyrobek" ilike 'ostatní' group by "Znacka", "ID_kontroly" , "Id_Zajisteni";
+
+------------------------------------------------------------------------------------------------------
+UPDATE "Zajisteni_skusobna" SET "Vyrobek" = 'retrocedule' where "ID_kontroly" = '101801310152802' or "ID_kontroly" = '101801310152802';
+
+UPDATE "Zajisteni_skusobna" SET "Vyrobek" = 'retrocedule' where "Id_Zajisteni" = '64386' or "Id_Zajisteni" = '64394' or "Id_Zajisteni" = '64385'
+or "Id_Zajisteni" = '64387' or "Id_Zajisteni" = '64389' or "Id_Zajisteni" = '64390' or "Id_Zajisteni" = '64392'  or "Id_Zajisteni" = '64395'
+or "Id_Zajisteni" = '64382' or "Id_Zajisteni" = '64384' or "Id_Zajisteni" = '64388' or "Id_Zajisteni" = '64391'  or "Id_Zajisteni" = '64393'
+or "Id_Zajisteni" = '64396' or "Id_Zajisteni" = '64383';
+
+UPDATE "Zajisteni_skusobna" SET "Vyrobek" = 'osvětlení 100 led' where "Id_Zajisteni" = '49915' or "Id_Zajisteni" = '49916' or "Id_Zajisteni" = '49917' or "Id_Zajisteni" = '49810' or "Id_Zajisteni" = '49809'
+or "Id_Zajisteni" = '49811';
+
+UPDATE "Zajisteni_skusobna" SET "Vyrobek" = 'obuv' where "Id_Zajisteni" = '61124';
+
+UPDATE "Zajisteni_skusobna" SET "Znacka" = 'CAMEL' where "Id_Zajisteni" = '61124';
+
+UPDATE "Zajisteni_skusobna" SET "Vyrobek" = 'řetízek' where "Id_Zajisteni" = '65801';
+
+UPDATE "Zajisteni_skusobna" SET "Znacka" = 'Tiffany&Co.' where "Id_Zajisteni" = '65801';
+
+UPDATE "Zajisteni_skusobna" SET "Vyrobek" = 'WC blok' where "Id_Zajisteni" = '86348';
+
+UPDATE "Zajisteni_skusobna" SET "Znacka" = 'Bref' where "Id_Zajisteni" = '86348';
+
+UPDATE "Zajisteni_skusobna" SET "Vyrobek" = 'obuv' where "Id_Zajisteni" = '59091';
+
+UPDATE "Zajisteni_skusobna" SET "Znacka" = 'Smiley' where "Id_Zajisteni" = '59091';
+
+UPDATE "Zajisteni_skusobna" SET "Vyrobek" = 'obal Frozen' where "Id_Zajisteni" = '49837' or "Id_Zajisteni" = '49836';
+
+UPDATE "Zajisteni_skusobna" SET "Znacka" = 'Frozen' where "Id_Zajisteni" = '49837' or "Id_Zajisteni" = '49836';
+
+UPDATE "Zajisteni_skusobna" SET "Vyrobek" = 'reproduktor' where "Id_Zajisteni" = '40424';
+
+UPDATE "Zajisteni_skusobna" SET "Znacka" = 'Minions' where "Id_Zajisteni" = '40424';
+
+UPDATE "Zajisteni_skusobna" SET "Vyrobek" = 'světelný řetěz' where "Id_Zajisteni" = '49808';
+
+UPDATE "Zajisteni_skusobna" SET "Znacka" = 'GS' where "Id_Zajisteni" = '49808';
+
+UPDATE "Zajisteni_skusobna" SET "Vyrobek" = 'hrnky' where "Id_Zajisteni" = '33407';
+
+UPDATE "Zajisteni_skusobna" SET "Znacka" = 'Hello Kitty' where "Id_Zajisteni" = '33407';
+
+UPDATE "Zajisteni_skusobna" SET "Vyrobek" = 'brýle' where "ID_kontroly" = '211704140027303';
+
+UPDATE "Zajisteni_skusobna" SET "Znacka" = 'Pilot' where "ID_kontroly" = '211704140027303';
+
+UPDATE "Zajisteni_skusobna" SET "Vyrobek" = 'powerdisk' where "ID_kontroly" = '221605060043299';
+
+UPDATE "Zajisteni_skusobna" SET "Znacka" = 'Mercedes' where "ID_kontroly" = '221605060043299';
+
+UPDATE "Zajisteni_skusobna" SET "Vyrobek" = 'vlajka' where "ID_kontroly" = '221509050051003';
+
+UPDATE "Zajisteni_skusobna" SET "Znacka" = 'Schalke' where "ID_kontroly" = '221509050051003';
+
+UPDATE "Zajisteni_skusobna" SET "Vyrobek" = 'tunika' where "ID_kontroly" = '401502100557802';
+
+UPDATE "Zajisteni_skusobna" SET "Znacka" = 'Dior' where "ID_kontroly" = '401502100557802';
+
+UPDATE "Zajisteni_skusobna" SET "Vyrobek" = 'samolepky' where "ID_kontroly" = '221410090251301';
+
+UPDATE "Zajisteni_skusobna" SET "Znacka" = 'Smile' where "ID_kontroly" = '221410090251301';
+
+UPDATE "Zajisteni_skusobna" SET "Vyrobek" = 'mp3 - ipod' where "ID_kontroly" = '221410310204902';
+
+UPDATE "Zajisteni_skusobna" SET "Vyrobek" = 'vlajka' where "ID_kontroly" = '221404100037001';
+
+UPDATE "Zajisteni_skusobna" SET "Znacka" = 'Borusia Dortm ' where "ID_kontroly" = '221404100037001';
+
+UPDATE "Zajisteni_skusobna" SET "Vyrobek" = 'penál' where "ID_kontroly" = '221410090253401';
+
+UPDATE "Zajisteni_skusobna" SET "Znacka" = 'Angry Birds ' where "ID_kontroly" = '221410090253401';
+
+UPDATE "Zajisteni_skusobna" SET "Vyrobek" = 'náušnice' where "ID_kontroly" = '221406180051001';
+
+UPDATE "Zajisteni_skusobna" SET "Znacka" = 'Michael Kors' where "ID_kontroly" = '221406180051001';
+
+UPDATE "Zajisteni_skusobna" SET "Vyrobek" = 'sada 3 etuí' where "ID_kontroly" = '221406160020801';
+
+UPDATE "Zajisteni_skusobna" SET "Znacka" = 'Smile ' where "ID_kontroly" = '221406160020801';
+
+UPDATE "Zajisteni_skusobna" SET "Vyrobek" = 'sluchátka' where "ID_kontroly" = '221406250028701' or "ID_kontroly" = '221401220020701';
+
+UPDATE "Zajisteni_skusobna" SET "Znacka" = 'Angry Birds ' where "ID_kontroly" = '221406250028701' or "ID_kontroly" = '221401220020701';
+
+UPDATE "Zajisteni_skusobna" SET "Vyrobek" = 'placka' where "ID_kontroly" = '221406300034501';
+
+UPDATE "Zajisteni_skusobna" SET "Znacka" = 'SMILEY' where "ID_kontroly" = '221406300034501';
+
+UPDATE "Zajisteni_skusobna" SET "Vyrobek" = 'štulpny' where "ID_kontroly" = '221406180037101';
+
+UPDATE "Zajisteni_skusobna" SET "Znacka" = 'Schalke' where "ID_kontroly" = '221406180037101';
+
+UPDATE "Zajisteni_skusobna" SET "Vyrobek" = 'tabatěrka' where "ID_kontroly" = '221406180037101';
+
+UPDATE "Zajisteni_skusobna" SET "Znacka" = 'Ford' where "ID_kontroly" = '221406180037101';
+
+UPDATE "Zajisteni_skusobna" SET "Vyrobek" = 'placka' where "ID_kontroly" = '221405050020701';
+
+UPDATE "Zajisteni_skusobna" SET "Znacka" = 'Spider-man' where "ID_kontroly" = '221405050020701';
+
+UPDATE "Zajisteni_skusobna" SET "Vyrobek" = 'mikina' where "ID_kontroly" = '221408260251102';
+
+UPDATE "Zajisteni_skusobna" SET "Znacka" = 'BWB' where "ID_kontroly" = '221408260251102';
+
+UPDATE "Zajisteni_skusobna" SET "Vyrobek" = 'mp3' where "ID_kontroly" = '221406060037201';
+
+UPDATE "Zajisteni_skusobna" SET "Znacka" = 'Apple' where "ID_kontroly" = '221406060037201';
+
+UPDATE "Zajisteni_skusobna" SET "Vyrobek" = 'mp4' where "ID_kontroly" = '221406060037201' or "ID_kontroly" = '221406180037201' ;
+
+UPDATE "Zajisteni_skusobna" SET "Znacka" = 'Apple' where "ID_kontroly" = '221406060037201' or "ID_kontroly" = '221406180037201';
+
+UPDATE "Zajisteni_skusobna" SET "Vyrobek" = 'mp3 přehrávač' where "ID_kontroly" = '221406180023801' or "ID_kontroly" = '221406180037201' or "ID_kontroly" = '221406190037001';
+
+UPDATE "Zajisteni_skusobna" SET "Znacka" = 'Apple' where "ID_kontroly" = '221406180023801' or "ID_kontroly" = '221406180037201' or "ID_kontroly" = '221406190037001';
+
+UPDATE "Zajisteni_skusobna" SET "Vyrobek" = 'vlajka' where "ID_kontroly" = '221407280037001';
+
+UPDATE "Zajisteni_skusobna" SET "Znacka" = 'FC Bbayern' where "ID_kontroly" = '221407280037001';
+
+UPDATE "Zajisteni_skusobna" SET "Vyrobek" = 'košík' where "ID_kontroly" = '221408060205701';
+
+UPDATE "Zajisteni_skusobna" SET "Znacka" = 'Burberry' where "ID_kontroly" = '221408060205701';
+
+UPDATE "Zajisteni_skusobna" SET "Vyrobek" = 'SD paměťová karta' where "ID_kontroly" = '221403060253401' or "ID_kontroly" = '221403190253401' or "ID_kontroly" = '221406180251301' or "ID_kontroly" = '221404080253802' or "ID_kontroly" ='221405270253801';
+
+UPDATE "Zajisteni_skusobna" SET "Vyrobek" = 'šle' where "ID_kontroly" = '221404080020801';
+
+UPDATE "Zajisteni_skusobna" SET "Znacka" = 'Smiley' where "ID_kontroly" = '221404080020801';
+
+UPDATE "Zajisteni_skusobna" SET "Vyrobek" = 'nůž' where "ID_kontroly" = '221404100037101';
+
+UPDATE "Zajisteni_skusobna" SET "Znacka" = 'FOX' where "ID_kontroly" = '221404100037101';
+
+UPDATE "Zajisteni_skusobna" SET "Vyrobek" = 'samolepky' where "ID_kontroly" = '221405220037202';
+
+UPDATE "Zajisteni_skusobna" SET "Znacka" = 'Hannah Montana ' where "ID_kontroly" = '221405220037202';
+
+--vytvoreni noveho sloupce Produkt
+ALTER TABLE "Zajisteni_skusobna" ADD COLUMN "Produkt" VARCHAR;
+
+--hodinky
+UPDATE "Zajisteni_skusobna" SET "Produkt" = 'hodinky a příslušenství' WHERE "Vyrobek" ILIKE '%hodin%';
+
+--obuv
+UPDATE "Zajisteni_skusobna" SET "Produkt" = 'obuv' WHERE "Vyrobek" ILIKE '%obuv%' or "Vyrobek" ILIKE 'nazouváky' or "Vyrobek" ILIKE 'holinky' or
+"Vyrobek" ILIKE 'vložk%' or "Vyrobek" ILIKE 'kozačk%'or "Vyrobek" ILIKE 'pantofle' or "Vyrobek" ILIKE 'lodičky';
+
+--odev
+UPDATE "Zajisteni_skusobna" SET "Produkt" = 'odev - čepice - klobouky' WHERE "Vyrobek" ILIKE '%čepice%' or "Vyrobek" ILIKE '%klobouk%' or "Vyrobek" ILIKE '%kšiltovk%';
+
+UPDATE "Zajisteni_skusobna" SET "Produkt" = 'odev - svetr' WHERE "Vyrobek" ILIKE 'svetr%' or "Vyrobek" ILIKE 'trikosvetr'  or "Vyrobek" ILIKE 'pončo';
+
+UPDATE "Zajisteni_skusobna" SET "Produkt" = 'odev - šála' WHERE "Vyrobek" ILIKE 'šála';
+
+UPDATE "Zajisteni_skusobna" SET "Produkt" = 'odev - mikina' WHERE "Vyrobek" ILIKE 'mikina' or "Vyrobek" ILIKE 'mikina%';
+
+UPDATE "Zajisteni_skusobna" SET "Produkt" = 'odev - vesta' WHERE "Vyrobek" ILIKE 'vesta%';
+
+UPDATE "Zajisteni_skusobna" SET "Produkt" = 'odev - pyžamo' WHERE "Vyrobek" ILIKE '%pyžamo%';
+
+UPDATE "Zajisteni_skusobna" SET "Produkt" = 'brýle' WHERE "Vyrobek" ILIKE '%brýle%' or "Vyrobek" ILIKE 'pouzdro%';
+
+UPDATE "Zajisteni_skusobna" SET "Produkt" = 'pásek' WHERE "Vyrobek" ILIKE 'pásek' or "Vyrobek" ILIKE 'přezka%';
+
+--parfem
+UPDATE "Zajisteni_skusobna" SET "Produkt" = 'parfém' WHERE "Vyrobek" ILIKE 'parfém';
+
+UPDATE "Zajisteni_skusobna" SET "Produkt" = 'odev - bunda, kabát' WHERE "Vyrobek" ILIKE '%bunda%' or "Vyrobek" ILIKE '%kabát%';
+
+UPDATE "Zajisteni_skusobna" SET "Produkt" = 'odev - tepláky' WHERE "Vyrobek" ILIKE 'teplák%';
+
+UPDATE "Zajisteni_skusobna" SET "Produkt" = 'dresy' WHERE "Vyrobek" ILIKE 'dres%';
+
+UPDATE "Zajisteni_skusobna" SET "Produkt" = 'šátek' WHERE "Vyrobek" ILIKE '%šátek%' or "Vyrobek" ILIKE '%šátky%';
+
+UPDATE "Zajisteni_skusobna" SET "Produkt" = 'odev - plavky' WHERE "Vyrobek" ILIKE '%plavky%';
+
+UPDATE "Zajisteni_skusobna" SET "Produkt" = 'ponožky' WHERE "Vyrobek" ILIKE '%ponožk%';
+
+--batohy
+UPDATE "Zajisteni_skusobna" SET "Produkt" = 'batozina' WHERE "Vyrobek" ILIKE '%taška%' or "Vyrobek" ILIKE '%batoh%' or 
+"Vyrobek" ILIKE '%ledv%' or "Vyrobek" ILIKE '%etu%' or "Vyrobek" ILIKE '%kufr%';
+
+UPDATE "Zajisteni_skusobna" SET "Produkt" = 'odev - košile' WHERE "Vyrobek" ILIKE 'košile' or "Vyrobek" ILIKE 'halenka';
+
+UPDATE "Zajisteni_skusobna" SET "Produkt" = 'odev - polokošile' WHERE "Vyrobek" ILIKE '%polokošile%';
+
+UPDATE "Zajisteni_skusobna" SET "Produkt" = 'odev - souprava' WHERE "Vyrobek" ILIKE '%souprava%';
+
+UPDATE "Zajisteni_skusobna" SET "Produkt" = 'odev - šaty' WHERE "Vyrobek" ILIKE '%šaty%';
+
+UPDATE "Zajisteni_skusobna" SET "Produkt" = 'odev - sukně' WHERE "Vyrobek" ILIKE '%sukn%';
+
+UPDATE "Zajisteni_skusobna" SET "Produkt" = 'odev - sako' WHERE "Vyrobek" ILIKE '%sako%';
+
+UPDATE "Zajisteni_skusobna" SET "Produkt" = 'odev - kalhoty' WHERE "Vyrobek" ILIKE 'kalhoty%' or "Vyrobek" ILIKE 'elastické kalhoty%' or  
+"Vyrobek" ILIKE 'kraťasy' or "Vyrobek" ILIKE '%rifle' or "Vyrobek" ILIKE '%legíny%' or "Vyrobek" ILIKE 'šortky';
+
+UPDATE "Zajisteni_skusobna" SET "Produkt" = 'odev - spodní prádlo' WHERE "Vyrobek" ILIKE '%tren%'or "Vyrobek" ILIKE '%slip%'or "Vyrobek" ILIKE '%podprs%' or
+"Vyrobek" ILIKE '%kalhotk%' or "Vyrobek" ILIKE 'tílko' or "Vyrobek" ILIKE 'spodní prádlo'or  "Vyrobek" ILIKE 'boxerky%';
+
+UPDATE "Zajisteni_skusobna" SET "Produkt" = 'odev - kostym' WHERE "Vyrobek" ILIKE '%kostým%';
+
+UPDATE "Zajisteni_skusobna" SET "Produkt" = 'odev - souprava' WHERE "Vyrobek" ILIKE 'triko+kraťasy';
+
+UPDATE "Zajisteni_skusobna" SET "Produkt" = 'kabelka' WHERE "Vyrobek" ILIKE 'kabelka%' or "Vyrobek" ILIKE 'kabela%' or "Vyrobek" ILIKE 'dámská kabelka';
+
+UPDATE "Zajisteni_skusobna" SET "Produkt" = 'odev - triko' WHERE "Vyrobek" ILIKE 'triko krátký%' or "Vyrobek" ILIKE 'triko dlouhý%' 
+or "Vyrobek" ILIKE 'triko' or "Vyrobek" ILIKE '%triko' or "Vyrobek" ILIKE 'rolák' or "Vyrobek" ILIKE 'tunika';
+
+--sperky
+UPDATE "Zajisteni_skusobna" SET "Produkt" = 'šperky' WHERE "Vyrobek" ILIKE '%náram%'or "Vyrobek" ILIKE '%prst%' or "Vyrobek" ILIKE '%přívěsek%'
+or "Vyrobek" ILIKE '%bižuterie%' or "Vyrobek" ILIKE '%náušnice%'or "Vyrobek" ILIKE '%řetízek' or "Vyrobek" ILIKE '%náhrdelník';
+
+--hračky
+UPDATE "Zajisteni_skusobna" SET "Produkt" = 'hry - hračky' WHERE "Vyrobek" ILIKE '%hračka%' or "Vyrobek" ILIKE 'stavebnice%' 
+or "Vyrobek" ILIKE 'panenk%' or "Vyrobek" ILIKE '%karty%'or "Vyrobek" ILIKE '%medvídek%' or "Vyrobek" ILIKE '%hra'
+or "Vyrobek" ILIKE '%postavič%' or "Vyrobek" ILIKE '%kartičk%' or "Vyrobek" ILIKE '%panenek%' or "Vyrobek" ILIKE '%maska%'
+or "Vyrobek" ILIKE '%figurk%' or "Vyrobek" ILIKE 'littlest%' or "Vyrobek" ILIKE 'vrtuln%' or "Vyrobek" ILIKE '%vůz' or "Vyrobek" ILIKE 'Transformers%'
+or "Vyrobek" ILIKE 'puzzle' or "Vyrobek" ILIKE 'music learn%' or "Vyrobek" ILIKE 'sada malá' or "Vyrobek" ILIKE 'sada velká' or "Vyrobek" ILIKE '%sada střední'
+or "Vyrobek" ILIKE 'plyšov%'  or "Vyrobek" ILIKE '%hry';
+
+UPDATE "Zajisteni_skusobna" SET "Produkt" = 'peněženka' WHERE "Vyrobek" ILIKE '%peněženka%';
+
+--elektronika - mobily
+UPDATE "Zajisteni_skusobna" SET "Produkt" = 'elektronika - mobil' WHERE "Vyrobek" ILIKE '%mobil%' or "Vyrobek" ILIKE '%telefon%' or "Vyrobek" ILIKE '%nabíječka%';
+
+--elektronika, prislusenstvi
+UPDATE "Zajisteni_skusobna" SET "Produkt" = 'elektronika - prislusenstvi' WHERE "Vyrobek" ILIKE 'sluchátka' or "Vyrobek" ILIKE '%přehrávač%' or 
+"Vyrobek" ILIKE 'reproduktor'  or "Vyrobek" ILIKE '%adaptér' or "Vyrobek" ILIKE '%myš' or  "Vyrobek" ILIKE '%USB%' or "Vyrobek" ILIKE '%CD%' 
+or "Vyrobek" ILIKE '%DVD%' or "Vyrobek" ILIKE '%radio%' or "Vyrobek" ILIKE 'kabel' or "Vyrobek" ILIKE 'elektro%' or "Vyrobek" ILIKE '%sd%'
+or "Vyrobek" ILIKE '%ovladač%' or "Vyrobek" ILIKE '%baterie%' or "Vyrobek" ILIKE '%Screen%' or "Vyrobek" ILIKE '%handsfree%' or 
+"Vyrobek" ILIKE '%lampička%' or "Vyrobek" ILIKE 'reproduktory'  or "Vyrobek" ILIKE '%paměť%' or "Vyrobek" ILIKE 'rádio' or "Vyrobek" ILIKE '%ipad%'
+or "Vyrobek" ILIKE 'držák mt%' or "Vyrobek" ILIKE 'mixér' or "Vyrobek" ILIKE 'mc' or "Vyrobek" ILIKE 'touchpad'
+or "Vyrobek" ILIKE 'přehrávač' or "Vyrobek" ILIKE 'mp3%' or "Vyrobek" ILIKE 'mp4';
+
+--cigarety
+UPDATE "Zajisteni_skusobna" SET "Produkt" = 'cigarety, tabak, příslušenství' WHERE "Vyrobek" ILIKE 'cigaret%' or "Vyrobek" ILIKE 'zapalovač'
+or "Vyrobek" ILIKE 'tabák';
+
+--pro děti
+UPDATE "Zajisteni_skusobna" SET "Produkt" = 'pro deti' WHERE "Vyrobek" ILIKE 'dudl%' or  "Vyrobek" ILIKE 'cukrov%'or "Vyrobek" ILIKE 'balonek'
+or "Vyrobek" ILIKE 'zástěrk%' or "Vyrobek" ILIKE 'kapsář' or "Vyrobek" ILIKE 'hrací sk%' or "Vyrobek" ILIKE '%židlička%' or "Vyrobek" ILIKE '%penál%';
+
+--ozdoby do vlasů
+UPDATE "Zajisteni_skusobna" SET "Produkt" = 'hřebeny, gumičky, čelenky' WHERE "Vyrobek" ILIKE '%kartáč%' or "Vyrobek" ILIKE 'hřeben' or 
+"Vyrobek" ILIKE 'čelenka' or "Vyrobek" ILIKE '%gumičk%' or "Vyrobek" ILIKE 'spon%';
+
+--drogerie
+UPDATE "Zajisteni_skusobna" SET "Produkt" = 'drogerie' WHERE "Vyrobek" ILIKE '%kosmeti%' or "Vyrobek" ILIKE '%kondom'  or "Vyrobek" ILIKE '%prací%'  
+or "Vyrobek" ILIKE '%aviváž' or "Vyrobek" ILIKE 'lak%' or "Vyrobek" ILIKE '%břity%'  or "Vyrobek" ILIKE '%osvěžovač'  or "Vyrobek" ILIKE '%kazeta'
+or "Vyrobek" ILIKE '%vložky' or "Vyrobek" ILIKE 'wc %';
+
+--domaci potreby
+UPDATE "Zajisteni_skusobna" SET "Produkt" = 'domaci potreby' WHERE "Vyrobek" ILIKE '%konvice' or "Vyrobek" ILIKE '%misa'  or "Vyrobek" ILIKE '%hrne%'  
+or "Vyrobek" ILIKE '%nůž' or "Vyrobek" ILIKE 'tác' or "Vyrobek" ILIKE '%koš' or "Vyrobek" ILIKE '%kráječ' or "Vyrobek" ILIKE '%mísa' or "Vyrobek" ILIKE '%talíř%'
+or "Vyrobek" ILIKE '%hrnk%'  or "Vyrobek" ilike 'placatka' or "Vyrobek" ilike '%ikérka' or "Vyrobek" ilike '%placatice%';
+
+--zvirata
+UPDATE "Zajisteni_skusobna" SET "Produkt" = 'zvirata' WHERE "Vyrobek" ILIKE '%psí%' or "Vyrobek" ilike '%postroj%'or "Vyrobek" ilike 'podložka pro%'
+or "Vyrobek" ilike '%obleček%' or "Vyrobek" ilike '%obojek';
+
+--auto - moto
+UPDATE "Zajisteni_skusobna" SET "Produkt" = 'auto - moto' WHERE "Vyrobek" ILIKE '%skútr%';
+
+--galanterie
+UPDATE "Zajisteni_skusobna" SET "Produkt" = 'galanterie' WHERE "Vyrobek" ILIKE '%osu%' or  "Vyrobek" ILIKE 'deka' 
+or  "Vyrobek" ILIKE 'deštník%' or  "Vyrobek" ILIKE 'nášivk%' or  "Vyrobek" ILIKE 'polšt%' or  "Vyrobek" ILIKE 'kravat%' or  "Vyrobek" ILIKE 'pléd%'
+or  "Vyrobek" ILIKE 'povlečení' or "Vyrobek" ILIKE 'rukavice' or "Vyrobek" ILIKE 'přeho%' or "Vyrobek" ILIKE 'látka' or "Vyrobek" ILIKE '%stuha%'
+or "Vyrobek" ILIKE 'povlak%' or "Vyrobek" ILIKE '%utěrky' or  "Vyrobek" ILIKE '%šle%';
+
+--manikura - pedikura
+UPDATE "Zajisteni_skusobna" SET "Produkt" = 'manikura - pedikura' WHERE "Vyrobek" ILIKE '%piln%'or "Vyrobek" ILIKE '%brus%' or "Vyrobek" ILIKE '%samolep% na %'
+or "Vyrobek" ILIKE 'manikura';
+
+--sklo
+UPDATE "Zajisteni_skusobna" SET "Produkt" = 'sklo' WHERE "Vyrobek" ILIKE '%sklo%';
+
+--papirnictvi
+UPDATE "Zajisteni_skusobna" SET "Produkt" = 'papirnictvi' WHERE  "Vyrobek" ILIKE '%krabič%'  or "Vyrobek" ILIKE 'samolepk%' 
+or "Vyrobek" ILIKE 'polepky' or "Vyrobek" ILIKE 'zápisník' or "Vyrobek" ILIKE 'propiska' or "Vyrobek" ILIKE 'kalkulačka';
+
+--jine
+UPDATE "Zajisteni_skusobna" SET "Produkt" = 'jine' WHERE "Vyrobek" ILIKE '%obraz%' or "Vyrobek" ILIKE '%cedule%' or "Vyrobek" ILIKE '%klíčenk%' 
+or "Vyrobek" ILIKE '%emblém%' or "Vyrobek" ILIKE '%klíčenk%' or "Vyrobek" ILIKE '%paralyz%'  or "Vyrobek" ILIKE '%olej%'
+ or "Vyrobek" ilike '%kosmodisk%' or "Vyrobek" ilike '%placka%' or "Vyrobek" ilike '%vrtačka%'or "Vyrobek" ilike 'logo'  or "Vyrobek" ilike '%finger%'
+ or "Vyrobek" ilike '%šňůrka%'  or "Vyrobek" ilike '%trx%' or "Vyrobek" ilike '%hlava' or "Vyrobek" ilike 'zrcátko'
+ or "Vyrobek" ilike '%autodiagnostika%' or "Vyrobek" ilike 'sekera' or "Vyrobek" ilike '%vagina%'
+  or "Vyrobek" ilike 'stojan na foto' or "Vyrobek" ilike '%na krk' or "Vyrobek" ilike 'motor% pila'  or "Vyrobek" ilike 'fotoalbum'
+  or "Vyrobek" ILIKE '%obal%'  or "Vyrobek" ILIKE '%tabat%' or "Vyrobek" ILIKE '%osvětl%' or "Vyrobek" ILIKE '%vlajk%' or "Vyrobek" ILIKE '%power%' or "Vyrobek" ILIKE '%koš%'
+  or "Vyrobek" ILIKE '%řetěz%' or "Vyrobek" ilike '%svícen%' or "Vyrobek" ilike '%známky%';
+
+--neidentifikovatelne
+UPDATE "Zajisteni_skusobna" SET "Produkt" = 'nezname' WHERE "Vyrobek" ILIKE '%průmer%' or "Vyrobek" ilike '%ostatní%' ;
